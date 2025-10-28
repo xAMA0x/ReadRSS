@@ -50,6 +50,17 @@ Le service de poller démarre automatiquement avec l'interface. Ajoutez un flux 
 - Sécurité réseau
   - Les flux doivent être servis en HTTPS (obligatoire). Les URLs en HTTP sont refusées (hors hôtes loopback utilisés pour les tests).
 
+### Affichage des emojis (Linux)
+
+Pour que les emojis s’affichent correctement, installez une police couvrant les emojis (par ex. Noto Color Emoji). Sur Debian/Ubuntu:
+
+```bash
+sudo apt-get update
+sudo apt-get install fonts-noto-color-emoji
+```
+
+L’application tente de charger automatiquement plusieurs polices systèmes (Noto Emoji / Noto Color Emoji / Noto Sans Symbols / DejaVu Sans). Si vous voyez encore des carrés, vérifiez que les polices existent dans `/usr/share/fonts/`.
+
 - Persistance anti-doublon: `~/.config/readrss/seen_store.json` (créé automatiquement). Ce fichier mémorise les articles déjà vus (par GUID/URL) pour éviter les doublons.
 
 ## Qualité & maintenance

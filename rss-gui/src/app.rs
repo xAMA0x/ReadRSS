@@ -182,7 +182,7 @@ impl RssApp {
 
     fn draw_discover_home(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.heading(egui::RichText::new("Discover").size(18.0));
+            ui.heading(egui::RichText::new("🧭 Discover").size(18.0));
         });
         ui.separator();
 
@@ -216,7 +216,7 @@ impl RssApp {
 
     fn draw_discover_category(&mut self, ui: &mut egui::Ui, category_name: String) {
         ui.horizontal(|ui| {
-            if ui.button("< Retour").clicked() {
+            if ui.button("← Retour").clicked() {
                 self.current_view = AppView::DiscoverHome;
                 return;
             }
@@ -516,9 +516,9 @@ impl RssApp {
                     // Discover: bouton simple qui ouvre la vue principale Discover
                     ui.group(|group| {
                         group.vertical(|ui| {
-                            // Bouton plein largeur sans emoji pour compatibilité
+                            // Bouton plein largeur avec emoji (emoji supporté via polices installées au démarrage)
                             let w = ui.available_width();
-                            let btn = egui::Button::new(egui::RichText::new("Discover").strong());
+                            let btn = egui::Button::new(egui::RichText::new("🧭 Discover").strong());
                             if ui.add_sized(egui::vec2(w, 28.0), btn).clicked() {
                                 self.current_view = AppView::DiscoverHome;
                                 self.selected_feed = None;
@@ -939,11 +939,11 @@ impl RssApp {
 
     fn draw_article_detail(&mut self, ui: &mut egui::Ui, article: FeedEntry) {
         ui.horizontal(|ui| {
-            if ui.button("< Retour").clicked() {
+            if ui.button("← Retour").clicked() {
                 self.current_view = AppView::ArticleList;
             }
             ui.separator();
-            ui.heading(egui::RichText::new("Lecture d'article").size(18.0));
+            ui.heading(egui::RichText::new("📖 Lecture d'article").size(18.0));
         });
 
         ui.separator();
