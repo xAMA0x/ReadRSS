@@ -1,0 +1,131 @@
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use tokio::sync::RwLock;
+use tracing::{debug, warn};
+
+use crate::feed::{add_feed, list_feeds, remove_feed, FeedDescriptor, FeedEntry, SharedFeedList};
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct ReadData {
+    // feed_id -> set of entry identities (marked as read)
+    read: HashMap<String, HashSet<String>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DataApi {
+    feeds: SharedFeedList,
+    read_inner: Arc<RwLock<ReadData>>,
+    feeds_path: PathBuf,
+    read_path: PathBuf,
+}
+
+impl DataApi {
+    /// Initialize the DataApi by loading persisted feeds and read state from a config directory.
+    pub async fn load_from_dir(feeds: SharedFeedList, dir: impl AsRef<Path>) -> Self {
+        let dir = dir.as_ref();
+        let feeds_path = dir.join("feeds.json");
+        let read_path = dir.join("read_store.json");
+
+        // Ensure directory exists
+        if let Err(e) = tokio::fs::create_dir_all(dir).await {
+            warn!(error = %e, "failed to create config dir");
+        }
+
+        // Load feeds.json and populate the shared store
+        let initial_feeds: Vec<FeedDescriptor> = match tokio::fs::read(&feeds_path).await {
+            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
+            Err(_) => Vec::new(),
+        };
+        if !initial_feeds.is_empty() {
+            let mut store = feeds.write().await;
+            *store = initial_feeds;
+        }
+
+        // Load read_store.json
+        let read_inner = match tokio::fs::read(&read_path).await {
+            Ok(bytes) => serde_json::from_slice::<ReadData>(&bytes).unwrap_or_default(),
+            Err(_) => ReadData::default(),
+        };
+
+        Self {
+            feeds,
+            read_inner: Arc::new(RwLock::new(read_inner)),
+            feeds_path,
+            read_path,
+        }
+    }
+
+    async fn persist_feeds(&self) {
+        let feeds = list_feeds(&self.feeds).await;
+        match serde_json::to_vec_pretty(&feeds) {
+            Ok(bytes) => {
+                if let Some(parent) = self.feeds_path.parent() {
+                    let _ = tokio::fs::create_dir_all(parent).await;
+                }
+                if let Err(e) = tokio::fs::write(&self.feeds_path, bytes).await {
+                    warn!(error = %e, path = %self.feeds_path.display(), "failed to persist feeds.json");
+                }
+            }
+            Err(e) => warn!(error = %e, "failed to serialize feeds for persistence"),
+        }
+    }
+
+    async fn persist_read(&self) {
+        let inner = self.read_inner.read().await;
+        match serde_json::to_vec_pretty(&*inner) {
+            Ok(bytes) => {
+                if let Some(parent) = self.read_path.parent() {
+                    let _ = tokio::fs::create_dir_all(parent).await;
+                }
+                if let Err(e) = tokio::fs::write(&self.read_path, bytes).await {
+                    warn!(error = %e, path = %self.read_path.display(), "failed to persist read_store.json");
+                }
+            }
+            Err(e) => warn!(error = %e, "failed to serialize read map"),
+        }
+    }
+
+    pub async fn add_feed(&self, feed: FeedDescriptor) {
+        add_feed(&self.feeds, feed).await;
+        self.persist_feeds().await;
+    }
+
+    pub async fn remove_feed(&self, feed_id: &str) {
+        remove_feed(&self.feeds, feed_id).await;
+        self.persist_feeds().await;
+        // Optionally drop read marks for this feed
+        let mut inner = self.read_inner.write().await;
+        inner.read.remove(feed_id);
+        drop(inner);
+        self.persist_read().await;
+    }
+
+    pub async fn list_feeds(&self) -> Vec<FeedDescriptor> {
+        list_feeds(&self.feeds).await
+    }
+
+    pub async fn is_read(&self, entry: &FeedEntry) -> bool {
+        let key = entry.identity();
+        let inner = self.read_inner.read().await;
+        inner
+            .read
+            .get(&entry.feed_id)
+            .map(|set| set.contains(&key))
+            .unwrap_or(false)
+    }
+
+    pub async fn mark_read(&self, entry: &FeedEntry) {
+        let key = entry.identity();
+        let mut inner = self.read_inner.write().await;
+        let set = inner.read.entry(entry.feed_id.clone()).or_default();
+        if set.insert(key) {
+            drop(inner);
+            self.persist_read().await;
+        } else {
+            debug!("entry already marked as read");
+        }
+    }
+}

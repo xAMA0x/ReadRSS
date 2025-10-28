@@ -3,8 +3,7 @@ use std::sync::Arc;
 use chrono::Utc;
 use eframe::egui::{self, Color32, Rounding, Stroke};
 use rss_core::{
-    add_feed, list_feeds, remove_feed, Event, FeedDescriptor, FeedEntry, PollerHandle,
-    SharedFeedList,
+    list_feeds, Event, FeedDescriptor, FeedEntry, PollerHandle, SharedFeedList, DataApi,
 };
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -14,6 +13,7 @@ pub struct AppInit {
     pub feeds: SharedFeedList,
     pub poller: PollerHandle,
     pub updates: mpsc::Receiver<Event>,
+    pub data_api: Arc<DataApi>,
 }
 
 #[derive(Debug, Clone)]
@@ -27,6 +27,7 @@ pub struct RssApp {
     feeds: SharedFeedList,
     poller: Option<PollerHandle>,
     updates: mpsc::Receiver<Event>,
+    data_api: Arc<DataApi>,
     articles: Vec<FeedEntry>,
     new_feed_title: String,
     new_feed_url: String,
@@ -42,6 +43,7 @@ impl RssApp {
             feeds: init.feeds,
             poller: Some(init.poller),
             updates: init.updates,
+            data_api: init.data_api,
             articles: Vec::new(),
             new_feed_title: String::new(),
             new_feed_url: String::new(),
@@ -168,7 +170,7 @@ impl RssApp {
             url: url.to_owned(),
         };
 
-        self.runtime.block_on(add_feed(&self.feeds, descriptor));
+        self.runtime.block_on(self.data_api.add_feed(descriptor));
         self.new_feed_title.clear();
         self.new_feed_url.clear();
     }
@@ -268,12 +270,9 @@ impl RssApp {
                                                         .on_hover_text("Supprimer ce flux")
                                                         .clicked()
                                                     {
-                                                        let feeds = self.feeds.clone();
                                                         let runtime = self.runtime.clone();
                                                         let feed_id = feed.id.clone();
-                                                        runtime.block_on(remove_feed(
-                                                            &feeds, &feed_id,
-                                                        ));
+                                                        runtime.block_on(self.data_api.remove_feed(&feed_id));
                                                         if self.selected_feed.as_ref()
                                                             == Some(&feed.id)
                                                         {
@@ -347,6 +346,7 @@ impl RssApp {
 
                             if title_response.clicked() {
                                 self.current_view = AppView::ArticleDetail(article.clone());
+                                self.runtime.block_on(self.data_api.mark_read(&article));
                             }
 
                             ui.add_space(5.0);
@@ -401,6 +401,7 @@ impl RssApp {
                             ui.horizontal(|ui| {
                                 if ui.small_button("📖 Lire").clicked() {
                                     self.current_view = AppView::ArticleDetail(article.clone());
+                                    self.runtime.block_on(self.data_api.mark_read(&article));
                                 }
 
                                 if ui.small_button("🔗 Ouvrir").clicked() {
