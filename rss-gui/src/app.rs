@@ -785,6 +785,9 @@ impl RssApp {
                     return;
                 }
 
+                // Laisser un léger espace avant la première carte pour éviter un effet d'écrasement sous l'entête
+                ui.add_space(4.0);
+
                 for article in articles {
                     // Filtre "Non lus" si activé
                     if self.show_unread_only {
@@ -793,7 +796,9 @@ impl RssApp {
                         }
                     }
                     egui::Frame::group(ui.style()).show(ui, |ui| {
-                        ui.set_min_height(120.0); // Hauteur minimale uniforme pour la première carte et les suivantes
+                        // Assurer une largeur pleine et une hauteur minimale pour homogénéiser la première carte
+                        ui.set_width(ui.available_width());
+                        ui.set_min_height(110.0);
                         ui.vertical(|ui| {
                             // État de lecture
                             let is_read = self.runtime.block_on(self.data_api.is_read(&article));
