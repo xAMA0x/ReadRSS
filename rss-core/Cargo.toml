@@ -13,6 +13,8 @@ tokio = { workspace = true }
 rss = { workspace = true }
 chrono = { workspace = true }
 thiserror = { workspace = true }
+dirs = "5.0"
+egui = { workspace = true }
 tracing = { workspace = true }
 atom_syndication = { workspace = true }
 url = { workspace = true }
