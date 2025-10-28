@@ -1,5 +1,4 @@
 mod app;
-mod webview;
 
 use std::sync::Arc;
 
@@ -107,38 +106,91 @@ fn load_data_api(runtime: &Arc<Runtime>, feeds: rss_core::SharedFeedList) -> Arc
 fn install_emoji_friendly_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
 
-    // Liste de polices candidates (Linux)
-    let candidates = [
-        // Emoji (couleur, peut s'afficher en monochrome si non supporté)
-        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-        "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
-        // Symboles étendus
-        "/usr/share/fonts/opentype/noto/NotoSansSymbols2-Regular.otf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    ];
+    fn add_font_path(fonts: &mut egui::FontDefinitions, path: &std::path::Path, added: &mut Vec<String>) -> bool {
+        match std::fs::read(path) {
+            Ok(bytes) => {
+                let name = format!("embedded-{}", added.len());
+                fonts.font_data.insert(name.clone(), egui::FontData::from_owned(bytes));
+                fonts
+                    .families
+                    .entry(egui::FontFamily::Proportional)
+                    .or_default()
+                    .push(name.clone());
+                fonts
+                    .families
+                    .entry(egui::FontFamily::Monospace)
+                    .or_default()
+                    .push(name.clone());
+                added.push(name);
+                true
+            }
+            Err(_) => false,
+        }
+    }
 
     let mut added: Vec<String> = Vec::new();
-    for path in candidates.iter() {
-        if let Ok(bytes) = std::fs::read(path) {
-            let name = format!("embedded-{}", added.len());
-            fonts.font_data.insert(name.clone(), egui::FontData::from_owned(bytes));
-            // Ajouter à la famille proportionnelle en dernier pour servir de fallback
-            fonts
-                .families
-                .entry(egui::FontFamily::Proportional)
-                .or_default()
-                .push(name.clone());
-            // Et aussi à monospace
-            fonts
-                .families
-                .entry(egui::FontFamily::Monospace)
-                .or_default()
-                .push(name.clone());
-            added.push(name);
+
+    // 1) Préférer la découverte via fontconfig (fontdb) pour couvrir les environnements sandboxés (ex: /run/host/fonts)
+    #[allow(unused_mut)]
+    let mut _used_fontdb = false;
+    #[cfg(not(target_os = "windows"))]
+    {
+        let mut db = fontdb::Database::new();
+        db.load_system_fonts();
+
+        // Ordre de préférence
+        let families = [
+            "Noto Color Emoji",
+            "Noto Emoji",
+            "Twemoji Mozilla",
+            "Twitter Color Emoji",
+            "JoyPixels",
+            "Noto Sans Symbols2",
+            "DejaVu Sans",
+        ];
+
+        for fam in families.iter() {
+            let query = fontdb::Query {
+                families: &[fontdb::Family::Name(fam)],
+                ..Default::default()
+            };
+            if let Some(id) = db.query(&query) {
+                if let Some(face) = db.face(id) {
+                    // Tenter de récupérer un chemin vers le fichier de police
+                    let maybe_path = match &face.source {
+                        fontdb::Source::File(p) => Some(p.clone()),
+                        _ => None,
+                    };
+                    if let Some(path) = maybe_path {
+                        if add_font_path(&mut fonts, &path, &mut added) {
+                            tracing::info!("Police ajoutée via fontconfig: {} -> {}", fam, path.display());
+                            _used_fontdb = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 2) Fallback: chemins connus (peuvent ne pas exister selon la distribution)
+    if added.is_empty() {
+        let candidates = [
+            // Emoji (couleur)
+            "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+            "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
+            // Symboles étendus
+            "/usr/share/fonts/opentype/noto/NotoSansSymbols2-Regular.otf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        ];
+        for path in candidates.iter() {
+            let _ = add_font_path(&mut fonts, std::path::Path::new(path), &mut added);
         }
     }
 
     if !added.is_empty() {
+        tracing::info!("Polices additionnelles chargées: {}", added.len());
         ctx.set_fonts(fonts);
+    } else {
+        tracing::warn!("Aucune police emoji/symboles additionnelle trouvée; le rendu dépendra des polices par défaut.");
     }
 }

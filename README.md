@@ -61,18 +61,9 @@ sudo apt-get install fonts-noto-color-emoji
 
 L’application tente de charger automatiquement plusieurs polices systèmes (Noto Emoji / Noto Color Emoji / Noto Sans Symbols / DejaVu Sans). Si vous voyez encore des carrés, vérifiez que les polices existent dans `/usr/share/fonts/`.
 
-### Aperçu intégré des articles (WebView)
+### Lecture des articles
 
-L’application intègre un moteur Web natif pour afficher les pages d’articles avec HTML+CSS/JS.
-
-- Linux: nécessite WebKitGTK. Sur Debian/Ubuntu:
-
-```bash
-sudo apt-get update
-sudo apt-get install libwebkit2gtk-4.1-0 libwebkit2gtk-4.1-dev libgtk-3-dev
-```
-
-Dans la vue de lecture, utilisez le bouton “Aperçu intégré (WebView)”. Une fenêtre dédiée (800×800) s’ouvre avec la page complète. Si les bibliothèques ne sont pas présentes, l’ouverture échouera et un message sera loggé.
+L’application n’intègre plus de WebView. Pour lire un article dans sa mise en page complète, utilisez le bouton « Ouvrir dans le navigateur »: le lien s’ouvrira dans votre navigateur par défaut. Cette approche évite les dépendances système lourdes et maximise la compatibilité.
 
 - Persistance anti-doublon: `~/.config/readrss/seen_store.json` (créé automatiquement). Ce fichier mémorise les articles déjà vus (par GUID/URL) pour éviter les doublons.
 

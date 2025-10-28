@@ -10,7 +10,6 @@ use rss_core::{
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use url::Url;
-use crate::webview::open_webview;
 
 // Recommandations de flux (catégories prédéfinies)
 struct RecFeed {
@@ -125,11 +124,7 @@ pub struct RssApp {
     show_unread_only: bool,
     // Discover
     discover_feedback: Option<(bool, String)>,
-    // Aperçu intégré d'une page d'article (rendu texte via le lien)
-    inline_preview: Option<String>,
-    inline_loading: bool,
-    inline_error: Option<String>,
-    inline_url: Option<String>,
+    // Aperçu intégré: supprimé — ouverture dans le navigateur par défaut
 }
 
 impl RssApp {
@@ -152,10 +147,6 @@ impl RssApp {
             add_feedback: None,
             show_unread_only: false,
             discover_feedback: None,
-            inline_preview: None,
-            inline_loading: false,
-            inline_error: None,
-            inline_url: None,
         };
         // Charger les articles persistés au démarrage (affichage immédiat)
         let persisted = app.runtime.block_on(app.data_api.list_all_articles());
@@ -183,7 +174,7 @@ impl RssApp {
 
     fn draw_discover_home(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.heading(egui::RichText::new("🧭 Discover").size(18.0));
+            ui.heading(egui::RichText::new("🔎 Discover").size(18.0));
         });
         ui.separator();
 
@@ -519,7 +510,7 @@ impl RssApp {
                         group.vertical(|ui| {
                             // Bouton plein largeur avec emoji (emoji supporté via polices installées au démarrage)
                             let w = ui.available_width();
-                            let btn = egui::Button::new(egui::RichText::new("🧭 Discover").strong());
+                            let btn = egui::Button::new(egui::RichText::new("🔎 Discover").strong());
                             if ui.add_sized(egui::vec2(w, 28.0), btn).clicked() {
                                 self.current_view = AppView::DiscoverHome;
                                 self.selected_feed = None;
@@ -872,10 +863,19 @@ impl RssApp {
                             } else {
                                 String::new()
                             };
-                            let preview_trunc = if preview_text.len() > 300 {
-                                format!("{}...", &preview_text[..297])
-                            } else {
-                                preview_text
+                            // Tronquer sans couper au milieu d'un caractère Unicode
+                            let preview_trunc = {
+                                let max_chars = 300usize;
+                                if preview_text.chars().count() > max_chars {
+                                    let mut s: String = preview_text
+                                        .chars()
+                                        .take(max_chars.saturating_sub(3))
+                                        .collect();
+                                    s.push_str("...");
+                                    s
+                                } else {
+                                    preview_text
+                                }
                             };
                             if !preview_trunc.is_empty() {
                                 ui.label(egui::RichText::new(preview_trunc).weak().size(13.0));
@@ -1019,88 +1019,10 @@ impl RssApp {
                                 ui.output_mut(|o| o.copied_text = article.url.clone());
                             }
 
-                            if ui.button("Afficher l'article ici (texte)").on_hover_text("Récupère le contenu de l'URL et l'affiche en dessous").clicked() {
-                                self.inline_loading = true;
-                                self.inline_error = None;
-                                self.inline_preview = None;
-                                self.inline_url = Some(article.url.clone());
-
-                                // Téléchargement synchrone (limité) via le runtime
-                                let url = article.url.clone();
-                                let timeout = self.poll_config.request_timeout;
-                                let client = self.client.clone();
-                                let res = self.runtime.block_on(async move {
-                                    use futures_util::StreamExt;
-                                    const MAX_INLINE_BYTES: usize = 1 * 1024 * 1024; // 1 MiB
-                                    let parsed = url::Url::parse(&url).map_err(|_| "URL invalide".to_string())?;
-                                    if parsed.scheme() != "https" {
-                                        return Err("URL non-HTTPS: affichage intégré refusé".to_string());
-                                    }
-                                    let resp = client.get(parsed).timeout(timeout).send().await.map_err(|e| e.to_string())?;
-                                    if let Some(len) = resp.content_length() {
-                                        if len > MAX_INLINE_BYTES as u64 {
-                                            return Err("Page trop volumineuse".to_string());
-                                        }
-                                    }
-                                    let mut buf = bytes::BytesMut::new();
-                                    let mut stream = resp.bytes_stream();
-                                    while let Some(chunk) = stream.next().await {
-                                        let c = chunk.map_err(|e| e.to_string())?;
-                                        if buf.len() + c.len() > MAX_INLINE_BYTES {
-                                            return Err("Page trop volumineuse".to_string());
-                                        }
-                                        buf.extend_from_slice(&c);
-                                    }
-                                    let html = String::from_utf8_lossy(&buf).to_string();
-                                    let text = html2text::from_read(html.as_bytes(), 2000);
-                                    Ok::<String, String>(text)
-                                });
-
-                                match res {
-                                    Ok(text) => {
-                                        self.inline_preview = Some(text);
-                                        self.inline_loading = false;
-                                    }
-                                    Err(err) => {
-                                        self.inline_error = Some(err);
-                                        self.inline_loading = false;
-                                    }
-                                }
-                            }
-
-                            if ui.button("Aperçu intégré (WebView)").on_hover_text("Ouvre un aperçu intégré avec HTML+CSS/JS").clicked() {
-                                if let Err(e) = open_webview(&article.url, &format!("{} — Aperçu", article.title)) {
-                                    eprintln!("Impossible d'ouvrir la WebView: {}", e);
-                                }
-                            }
+                            // Aperçu intégré retiré: on s'appuie uniquement sur l'ouverture du lien dans le navigateur.
                         });
 
-                        // Affichage intégré (aperçu texte) sous l'article
-                        if let Some(current) = &self.inline_url {
-                            if current != &article.url {
-                                // Réinitialiser si on a changé d'article
-                                self.inline_preview = None;
-                                self.inline_error = None;
-                                self.inline_loading = false;
-                                self.inline_url = None;
-                            }
-                        }
-
-                        if self.inline_loading {
-                            ui.add_space(10.0);
-                            ui.label(egui::RichText::new("Chargement de l'article... Merci de patienter.").weak());
-                        } else if let Some(err) = &self.inline_error {
-                            ui.add_space(10.0);
-                            ui.label(egui::RichText::new(format!("Impossible d'afficher l'article ici: {}", err)).color(Color32::from_rgb(229,57,53)));
-                        } else if let Some(preview) = &self.inline_preview {
-                            ui.add_space(10.0);
-                            ui.separator();
-                            ui.label(egui::RichText::new("Aperçu de l'article (via le lien)" ).strong().size(16.0));
-                            ui.add_space(6.0);
-                            egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
-                                ui.label(egui::RichText::new(preview.clone()).size(14.0));
-                            });
-                        }
+                        // (Aperçu texte retiré)
                     });
                 });
             });
