@@ -67,10 +67,7 @@ impl FeedEntry {
         if !self.url.is_empty() {
             return format!("url:{}", self.url);
         }
-        let ts = self
-            .published_at
-            .map(|d| d.timestamp())
-            .unwrap_or_default();
+        let ts = self.published_at.map(|d| d.timestamp()).unwrap_or_default();
         format!("title:{}@{}", self.title, ts)
     }
 }

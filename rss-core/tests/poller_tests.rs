@@ -44,7 +44,12 @@ async fn poll_once_emits_new_articles_and_deduplicates() {
         url: format!("{}/feed", server.base_url()),
     };
     let feeds = vec![feed];
-    let cfg = PollConfig { interval: std::time::Duration::from_millis(10), request_timeout: std::time::Duration::from_secs(2), max_retries: 1, retry_backoff_ms: 10 };
+    let cfg = PollConfig {
+        interval: std::time::Duration::from_millis(10),
+        request_timeout: std::time::Duration::from_secs(2),
+        max_retries: 1,
+        retry_backoff_ms: 10,
+    };
     let client = Client::new();
     let seen = SeenStore::in_memory();
 

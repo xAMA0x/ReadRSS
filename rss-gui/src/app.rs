@@ -53,52 +53,52 @@ impl RssApp {
 
     fn setup_dark_theme(&self, ctx: &egui::Context) {
         let mut style = (*ctx.style()).clone();
-        
+
         // Couleurs principales VS Code Dark
-        let bg_color = Color32::from_rgb(30, 30, 30);      // Arrière-plan principal
-        let panel_color = Color32::from_rgb(37, 37, 38);   // Panneaux latéraux
-        let border_color = Color32::from_rgb(62, 62, 66);  // Bordures
+        let bg_color = Color32::from_rgb(30, 30, 30); // Arrière-plan principal
+        let panel_color = Color32::from_rgb(37, 37, 38); // Panneaux latéraux
+        let border_color = Color32::from_rgb(62, 62, 66); // Bordures
         let text_color = Color32::from_rgb(204, 204, 204); // Texte principal
         let accent_color = Color32::from_rgb(0, 122, 204); // Bleu accent VS Code
-        let hover_color = Color32::from_rgb(46, 46, 46);   // Survol
-        
+        let hover_color = Color32::from_rgb(46, 46, 46); // Survol
+
         // Configuration des couleurs
         style.visuals.dark_mode = true;
         style.visuals.panel_fill = panel_color;
         style.visuals.window_fill = bg_color;
         style.visuals.extreme_bg_color = Color32::from_rgb(25, 25, 25);
         style.visuals.faint_bg_color = Color32::from_rgb(45, 45, 45);
-        
+
         // Couleurs de texte
         style.visuals.override_text_color = Some(text_color);
-        
+
         // Couleurs des widgets
         style.visuals.widgets.noninteractive.bg_fill = panel_color;
         style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, border_color);
         style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, text_color);
-        
+
         style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(50, 50, 50);
         style.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, border_color);
         style.visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, text_color);
-        
+
         style.visuals.widgets.hovered.bg_fill = hover_color;
         style.visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, accent_color);
         style.visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, text_color);
-        
+
         style.visuals.widgets.active.bg_fill = accent_color;
         style.visuals.widgets.active.bg_stroke = Stroke::new(1.0, accent_color);
         style.visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
-        
+
         // Sélection
         style.visuals.selection.bg_fill = Color32::from_rgba_unmultiplied(0, 122, 204, 60);
         style.visuals.selection.stroke = Stroke::new(1.0, accent_color);
-        
+
         // Bordures arrondies subtiles
         style.visuals.widgets.noninteractive.rounding = Rounding::same(3.0);
         style.visuals.widgets.inactive.rounding = Rounding::same(3.0);
         style.visuals.widgets.hovered.rounding = Rounding::same(3.0);
         style.visuals.widgets.active.rounding = Rounding::same(3.0);
-        
+
         ctx.set_style(style);
     }
 
@@ -116,8 +116,7 @@ impl RssApp {
     }
 
     fn feeds_snapshot(&self) -> Vec<FeedDescriptor> {
-        self.runtime
-            .block_on(list_feeds(&self.feeds))
+        self.runtime.block_on(list_feeds(&self.feeds))
     }
 
     fn filtered_feeds(&self) -> Vec<FeedDescriptor> {
@@ -128,8 +127,13 @@ impl RssApp {
             feeds
                 .into_iter()
                 .filter(|feed| {
-                    feed.title.to_lowercase().contains(&self.feed_search.to_lowercase())
-                        || feed.url.to_lowercase().contains(&self.feed_search.to_lowercase())
+                    feed.title
+                        .to_lowercase()
+                        .contains(&self.feed_search.to_lowercase())
+                        || feed
+                            .url
+                            .to_lowercase()
+                            .contains(&self.feed_search.to_lowercase())
                 })
                 .collect()
         }
@@ -178,15 +182,19 @@ impl RssApp {
                     // Section d'ajout de flux
                     ui.group(|group| {
                         group.vertical(|ui| {
-                            ui.label(egui::RichText::new("🔍 Ajouter un nouveau flux").strong().size(15.0));
+                            ui.label(
+                                egui::RichText::new("🔍 Ajouter un nouveau flux")
+                                    .strong()
+                                    .size(15.0),
+                            );
                             ui.separator();
-                            
+
                             ui.label(egui::RichText::new("Titre du flux :").size(13.0));
                             ui.text_edit_singleline(&mut self.new_feed_title);
-                            
+
                             ui.label(egui::RichText::new("URL du flux :").size(13.0));
                             ui.text_edit_singleline(&mut self.new_feed_url);
-                            
+
                             ui.horizontal(|ui| {
                                 if ui.button("➕ Ajouter").clicked() {
                                     self.add_feed_from_input();
@@ -204,7 +212,11 @@ impl RssApp {
                     // Section de recherche des flux
                     ui.group(|group| {
                         group.vertical(|ui| {
-                            ui.label(egui::RichText::new("🔍 Rechercher dans les flux").strong().size(15.0));
+                            ui.label(
+                                egui::RichText::new("🔍 Rechercher dans les flux")
+                                    .strong()
+                                    .size(15.0),
+                            );
                             ui.separator();
                             ui.text_edit_singleline(&mut self.feed_search);
                         });
@@ -217,11 +229,14 @@ impl RssApp {
                         group.vertical(|ui| {
                             ui.horizontal(|ui| {
                                 ui.label(egui::RichText::new("📡 Flux RSS").strong().size(15.0));
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    if ui.small_button("Tous").clicked() {
-                                        self.selected_feed = None;
-                                    }
-                                });
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui.small_button("Tous").clicked() {
+                                            self.selected_feed = None;
+                                        }
+                                    },
+                                );
                             });
                             ui.separator();
 
@@ -229,34 +244,51 @@ impl RssApp {
                                 .auto_shrink([false, true])
                                 .show(ui, |ui| {
                                     let feeds = self.filtered_feeds();
-                                    
+
                                     for feed in &feeds {
-                                        let is_selected = self.selected_feed.as_ref() == Some(&feed.id);
-                                        
+                                        let is_selected =
+                                            self.selected_feed.as_ref() == Some(&feed.id);
+
                                         ui.horizontal(|ui| {
-                                            let response = ui.selectable_label(is_selected, egui::RichText::new(&feed.title).size(14.0));
-                                            
+                                            let response = ui.selectable_label(
+                                                is_selected,
+                                                egui::RichText::new(&feed.title).size(14.0),
+                                            );
+
                                             if response.clicked() {
                                                 self.selected_feed = Some(feed.id.clone());
                                             }
                                             response.on_hover_text(&feed.url);
-                                            
-                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                                if ui.small_button("🗑").on_hover_text("Supprimer ce flux").clicked() {
-                                                    let feeds = self.feeds.clone();
-                                                    let runtime = self.runtime.clone();
-                                                    let feed_id = feed.id.clone();
-                                                    runtime.block_on(remove_feed(&feeds, &feed_id));
-                                                    if self.selected_feed.as_ref() == Some(&feed.id) {
-                                                        self.selected_feed = None;
+
+                                            ui.with_layout(
+                                                egui::Layout::right_to_left(egui::Align::Center),
+                                                |ui| {
+                                                    if ui
+                                                        .small_button("🗑")
+                                                        .on_hover_text("Supprimer ce flux")
+                                                        .clicked()
+                                                    {
+                                                        let feeds = self.feeds.clone();
+                                                        let runtime = self.runtime.clone();
+                                                        let feed_id = feed.id.clone();
+                                                        runtime.block_on(remove_feed(
+                                                            &feeds, &feed_id,
+                                                        ));
+                                                        if self.selected_feed.as_ref()
+                                                            == Some(&feed.id)
+                                                        {
+                                                            self.selected_feed = None;
+                                                        }
                                                     }
-                                                }
-                                            });
+                                                },
+                                            );
                                         });
                                     }
-                                    
+
                                     if feeds.is_empty() && !self.feed_search.is_empty() {
-                                        ui.label(egui::RichText::new("Aucun flux trouvé").size(13.0));
+                                        ui.label(
+                                            egui::RichText::new("Aucun flux trouvé").size(13.0),
+                                        );
                                     }
                                 });
                         });
@@ -266,11 +298,9 @@ impl RssApp {
     }
 
     fn draw_main_content(&mut self, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            match &self.current_view {
-                AppView::ArticleList => self.draw_article_list(ui),
-                AppView::ArticleDetail(article) => self.draw_article_detail(ui, article.clone()),
-            }
+        egui::CentralPanel::default().show(ctx, |ui| match &self.current_view {
+            AppView::ArticleList => self.draw_article_list(ui),
+            AppView::ArticleDetail(article) => self.draw_article_detail(ui, article.clone()),
         });
     }
 
@@ -278,7 +308,9 @@ impl RssApp {
         ui.horizontal(|ui| {
             ui.heading(egui::RichText::new("📰 Articles RSS").size(18.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(egui::RichText::new(format!("{} articles", self.articles.len())).size(13.0));
+                ui.label(
+                    egui::RichText::new(format!("{} articles", self.articles.len())).size(13.0),
+                );
             });
         });
         ui.separator();
@@ -286,13 +318,17 @@ impl RssApp {
         egui::ScrollArea::vertical()
             .auto_shrink([false, true])
             .show(ui, |ui| {
-                let articles: Vec<FeedEntry> = self.filtered_articles().into_iter().cloned().collect();
-                
+                let articles: Vec<FeedEntry> =
+                    self.filtered_articles().into_iter().cloned().collect();
+
                 if articles.is_empty() {
                     ui.vertical_centered(|ui| {
                         ui.add_space(50.0);
                         ui.label(egui::RichText::new("📭 Aucun article disponible").size(16.0));
-                        ui.label(egui::RichText::new("Ajoutez des flux RSS pour voir des articles").size(14.0));
+                        ui.label(
+                            egui::RichText::new("Ajoutez des flux RSS pour voir des articles")
+                                .size(14.0),
+                        );
                     });
                     return;
                 }
@@ -302,9 +338,11 @@ impl RssApp {
                         group.vertical(|ui| {
                             // Titre de l'article
                             let title_response = ui.add(
-                                egui::Label::new(egui::RichText::new(&article.title).strong().size(17.0))
-                                    .wrap(true)
-                                    .sense(egui::Sense::click())
+                                egui::Label::new(
+                                    egui::RichText::new(&article.title).strong().size(17.0),
+                                )
+                                .wrap(true)
+                                .sense(egui::Sense::click()),
                             );
 
                             if title_response.clicked() {
@@ -316,17 +354,32 @@ impl RssApp {
                             // Informations sur l'article
                             ui.horizontal_wrapped(|ui| {
                                 if let Some(author) = &article.author {
-                                    ui.label(egui::RichText::new(format!("👤 {}", author)).weak().size(12.0));
+                                    ui.label(
+                                        egui::RichText::new(format!("👤 {}", author))
+                                            .weak()
+                                            .size(12.0),
+                                    );
                                     ui.separator();
                                 }
-                                
+
                                 if let Some(category) = &article.category {
-                                    ui.label(egui::RichText::new(format!("🏷 {}", category)).weak().size(12.0));
+                                    ui.label(
+                                        egui::RichText::new(format!("🏷 {}", category))
+                                            .weak()
+                                            .size(12.0),
+                                    );
                                     ui.separator();
                                 }
-                                
+
                                 if let Some(date) = article.published_at {
-                                    ui.label(egui::RichText::new(format!("📅 {}", date.format("%d/%m/%Y %H:%M"))).weak().size(12.0));
+                                    ui.label(
+                                        egui::RichText::new(format!(
+                                            "📅 {}",
+                                            date.format("%d/%m/%Y %H:%M")
+                                        ))
+                                        .weak()
+                                        .size(12.0),
+                                    );
                                 }
                             });
 
@@ -349,7 +402,7 @@ impl RssApp {
                                 if ui.small_button("📖 Lire").clicked() {
                                     self.current_view = AppView::ArticleDetail(article.clone());
                                 }
-                                
+
                                 if ui.small_button("🔗 Ouvrir").clicked() {
                                     if let Err(e) = webbrowser::open(&article.url) {
                                         eprintln!("Erreur lors de l'ouverture du lien: {}", e);
@@ -372,7 +425,7 @@ impl RssApp {
             ui.separator();
             ui.heading(egui::RichText::new("📖 Lecture d'article").size(18.0));
         });
-        
+
         ui.separator();
 
         egui::ScrollArea::vertical()
@@ -382,23 +435,35 @@ impl RssApp {
                     group.vertical(|ui| {
                         // Titre de l'article
                         ui.label(egui::RichText::new(&article.title).strong().size(22.0));
-                        
+
                         ui.add_space(10.0);
 
                         // Métadonnées
                         ui.horizontal_wrapped(|ui| {
                             if let Some(author) = &article.author {
-                                ui.label(egui::RichText::new(format!("👤 Auteur: {}", author)).size(14.0));
+                                ui.label(
+                                    egui::RichText::new(format!("👤 Auteur: {}", author))
+                                        .size(14.0),
+                                );
                                 ui.separator();
                             }
-                            
+
                             if let Some(category) = &article.category {
-                                ui.label(egui::RichText::new(format!("🏷 Catégorie: {}", category)).size(14.0));
+                                ui.label(
+                                    egui::RichText::new(format!("🏷 Catégorie: {}", category))
+                                        .size(14.0),
+                                );
                                 ui.separator();
                             }
-                            
+
                             if let Some(date) = article.published_at {
-                                ui.label(egui::RichText::new(format!("📅 Publié le: {}", date.format("%d/%m/%Y à %H:%M"))).size(14.0));
+                                ui.label(
+                                    egui::RichText::new(format!(
+                                        "📅 Publié le: {}",
+                                        date.format("%d/%m/%Y à %H:%M")
+                                    ))
+                                    .size(14.0),
+                                );
                             }
                         });
 
@@ -408,7 +473,11 @@ impl RssApp {
                         if let Some(summary) = &article.summary {
                             ui.label(egui::RichText::new(summary).size(15.0));
                         } else {
-                            ui.label(egui::RichText::new("Aucun contenu disponible").weak().size(15.0));
+                            ui.label(
+                                egui::RichText::new("Aucun contenu disponible")
+                                    .weak()
+                                    .size(15.0),
+                            );
                         }
 
                         ui.add_space(20.0);
@@ -420,7 +489,7 @@ impl RssApp {
                                     eprintln!("Erreur lors de l'ouverture du lien: {}", e);
                                 }
                             }
-                            
+
                             if ui.button("📋 Copier le lien").clicked() {
                                 ui.output_mut(|o| o.copied_text = article.url.clone());
                             }

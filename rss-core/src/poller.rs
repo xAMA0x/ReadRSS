@@ -96,12 +96,12 @@ pub fn spawn_poller(
     PollerHandle { cancel_tx, join }
 }
 
-async fn fetch_feed(client: &Client, feed: &FeedDescriptor, timeout: Duration) -> Result<Vec<FeedEntry>, PollError> {
-    let response = client
-        .get(feed.url.clone())
-        .timeout(timeout)
-        .send()
-        .await?;
+async fn fetch_feed(
+    client: &Client,
+    feed: &FeedDescriptor,
+    timeout: Duration,
+) -> Result<Vec<FeedEntry>, PollError> {
+    let response = client.get(feed.url.clone()).timeout(timeout).send().await?;
     let bytes = response.bytes().await?;
     let mut cursor = std::io::Cursor::new(bytes.to_vec());
     let channel = rss::Channel::read_from(&mut cursor)?;
@@ -177,9 +177,7 @@ impl PollConfig {
                             .map(Duration::from_millis)
                             .unwrap_or(defaults.request_timeout),
                         max_retries: raw.max_retries.unwrap_or(defaults.max_retries),
-                        retry_backoff_ms: raw
-                            .retry_backoff_ms
-                            .unwrap_or(defaults.retry_backoff_ms),
+                        retry_backoff_ms: raw.retry_backoff_ms.unwrap_or(defaults.retry_backoff_ms),
                     }
                 } else {
                     defaults
