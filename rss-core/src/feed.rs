@@ -22,6 +22,10 @@ pub struct FeedEntry {
     pub guid: Option<String>,
     pub author: Option<String>,
     pub category: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_html: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<String>,
 }
 
 impl FeedEntry {
@@ -47,6 +51,19 @@ impl FeedEntry {
                     .and_then(|dc| dc.subjects().first().map(|s| s.to_string()))
             });
 
+        // Extract content:encoded (RSS content module)
+        let content_html = item
+            .extensions()
+            .get("content")
+            .and_then(|m| m.get("encoded"))
+            .and_then(|v| v.first())
+            .and_then(|ext| ext.value.clone());
+
+        // Extract image url from enclosure (basic approach)
+        let image_url = item
+            .enclosure()
+            .map(|e| e.url().to_string());
+
         Self {
             feed_id: feed_id.to_owned(),
             title: item.title().unwrap_or_default().to_owned(),
@@ -56,6 +73,8 @@ impl FeedEntry {
             guid: item.guid().map(|guid| guid.value().to_owned()),
             author,
             category,
+            content_html,
+            image_url,
         }
     }
 
@@ -95,6 +114,14 @@ impl FeedEntry {
             .map(|l| l.href.clone())
             .unwrap_or_default();
 
+        // Prefer inline content when available
+        let content_html = entry
+            .content()
+            .and_then(|c| c.value.clone());
+
+        // Image detection for Atom (optional): keep None for now
+        let image_url = None;
+
         Self {
             feed_id: feed_id.to_owned(),
             title: entry.title().to_string(),
@@ -104,6 +131,8 @@ impl FeedEntry {
             guid: Some(entry.id().to_owned()),
             author,
             category,
+            content_html,
+            image_url,
         }
     }
 }

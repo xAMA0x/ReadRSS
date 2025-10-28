@@ -315,6 +315,8 @@ impl RssApp {
                                                         let runtime = self.runtime.clone();
                                                         let feed_id = feed.id.clone();
                                                         runtime.block_on(self.data_api.remove_feed(&feed_id));
+                                                        // Retirer les articles du flux supprimé
+                                                        self.articles.retain(|a| a.feed_id != feed.id);
                                                         if self.selected_feed.as_ref()
                                                             == Some(&feed.id)
                                                         {
@@ -427,14 +429,21 @@ impl RssApp {
 
                             ui.add_space(3.0);
 
-                            // Résumé de l'article
-                            if let Some(summary) = &article.summary {
-                                let truncated_summary = if summary.len() > 200 {
-                                    format!("{}...", &summary[..197])
-                                } else {
-                                    summary.clone()
-                                };
-                                ui.label(egui::RichText::new(truncated_summary).weak().size(13.0));
+                            // Aperçu de contenu (plus détaillé)
+                            let preview_text = if let Some(html) = &article.content_html {
+                                html2text::from_read(html.as_bytes(), 100)
+                            } else if let Some(summary) = &article.summary {
+                                summary.clone()
+                            } else {
+                                String::new()
+                            };
+                            let preview_trunc = if preview_text.len() > 600 {
+                                format!("{}...", &preview_text[..597])
+                            } else {
+                                preview_text
+                            };
+                            if !preview_trunc.is_empty() {
+                                ui.label(egui::RichText::new(preview_trunc).weak().size(13.0));
                             }
 
                             ui.add_space(5.0);
@@ -512,8 +521,11 @@ impl RssApp {
 
                         ui.separator();
 
-                        // Contenu de l'article
-                        if let Some(summary) = &article.summary {
+                        // Contenu de l'article (préférence pour le HTML intégral si présent)
+                        if let Some(html) = &article.content_html {
+                            let text = html2text::from_read(html.as_bytes(), 100);
+                            ui.label(egui::RichText::new(text).size(15.0));
+                        } else if let Some(summary) = &article.summary {
                             ui.label(egui::RichText::new(summary).size(15.0));
                         } else {
                             ui.label(

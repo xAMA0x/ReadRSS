@@ -40,6 +40,8 @@ async fn data_api_persists_feeds_and_read_state() {
         guid: Some("guid-1".into()),
         author: None,
         category: None,
+        content_html: None,
+        image_url: None,
     };
     api2.mark_read(&entry).await;
 

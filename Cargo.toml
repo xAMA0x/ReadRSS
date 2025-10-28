@@ -29,4 +29,5 @@ webbrowser = "0.8"
 dirs = "5"
 atom_syndication = "0.12"
 url = "2"
+html2text = "0.11"
 

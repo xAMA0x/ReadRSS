@@ -17,3 +17,4 @@ chrono = { workspace = true }
 webbrowser = { workspace = true }
 dirs = { workspace = true }
 url = { workspace = true }
+html2text = { workspace = true }
