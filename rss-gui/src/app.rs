@@ -124,6 +124,11 @@ pub struct RssApp {
     show_unread_only: bool,
     // Discover
     discover_feedback: Option<(bool, String)>,
+    // Aperçu intégré d'une page d'article (rendu texte via le lien)
+    inline_preview: Option<String>,
+    inline_loading: bool,
+    inline_error: Option<String>,
+    inline_url: Option<String>,
 }
 
 impl RssApp {
@@ -146,6 +151,10 @@ impl RssApp {
             add_feedback: None,
             show_unread_only: false,
             discover_feedback: None,
+            inline_preview: None,
+            inline_loading: false,
+            inline_error: None,
+            inline_url: None,
         };
         // Charger les articles persistés au démarrage (affichage immédiat)
         let persisted = app.runtime.block_on(app.data_api.list_all_articles());
@@ -173,7 +182,7 @@ impl RssApp {
 
     fn draw_discover_home(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.heading(egui::RichText::new("🧭 Discover").size(18.0));
+            ui.heading(egui::RichText::new("Discover").size(18.0));
         });
         ui.separator();
 
@@ -207,7 +216,7 @@ impl RssApp {
 
     fn draw_discover_category(&mut self, ui: &mut egui::Ui, category_name: String) {
         ui.horizontal(|ui| {
-            if ui.button("← Retour").clicked() {
+            if ui.button("< Retour").clicked() {
                 self.current_view = AppView::DiscoverHome;
                 return;
             }
@@ -930,11 +939,11 @@ impl RssApp {
 
     fn draw_article_detail(&mut self, ui: &mut egui::Ui, article: FeedEntry) {
         ui.horizontal(|ui| {
-            if ui.button("← Retour").clicked() {
+            if ui.button("< Retour").clicked() {
                 self.current_view = AppView::ArticleList;
             }
             ui.separator();
-            ui.heading(egui::RichText::new("📖 Lecture d'article").size(18.0));
+            ui.heading(egui::RichText::new("Lecture d'article").size(18.0));
         });
 
         ui.separator();
@@ -999,16 +1008,92 @@ impl RssApp {
 
                         // Actions
                         ui.horizontal(|ui| {
-                            if ui.button("🔗 Ouvrir l'article complet").clicked() {
+                            if ui.button("Ouvrir l'article dans le navigateur").clicked() {
                                 if let Err(e) = webbrowser::open(&article.url) {
                                     eprintln!("Erreur lors de l'ouverture du lien: {}", e);
                                 }
                             }
 
-                            if ui.button("📋 Copier le lien").clicked() {
+                            if ui.button("Copier le lien").clicked() {
                                 ui.output_mut(|o| o.copied_text = article.url.clone());
                             }
+
+                            if ui.button("Afficher l'article ici").on_hover_text("Récupère le contenu de l'URL et l'affiche en dessous").clicked() {
+                                self.inline_loading = true;
+                                self.inline_error = None;
+                                self.inline_preview = None;
+                                self.inline_url = Some(article.url.clone());
+
+                                // Téléchargement synchrone (limité) via le runtime
+                                let url = article.url.clone();
+                                let timeout = self.poll_config.request_timeout;
+                                let client = self.client.clone();
+                                let res = self.runtime.block_on(async move {
+                                    use futures_util::StreamExt;
+                                    const MAX_INLINE_BYTES: usize = 1 * 1024 * 1024; // 1 MiB
+                                    let parsed = url::Url::parse(&url).map_err(|_| "URL invalide".to_string())?;
+                                    if parsed.scheme() != "https" {
+                                        return Err("URL non-HTTPS: affichage intégré refusé".to_string());
+                                    }
+                                    let resp = client.get(parsed).timeout(timeout).send().await.map_err(|e| e.to_string())?;
+                                    if let Some(len) = resp.content_length() {
+                                        if len > MAX_INLINE_BYTES as u64 {
+                                            return Err("Page trop volumineuse".to_string());
+                                        }
+                                    }
+                                    let mut buf = bytes::BytesMut::new();
+                                    let mut stream = resp.bytes_stream();
+                                    while let Some(chunk) = stream.next().await {
+                                        let c = chunk.map_err(|e| e.to_string())?;
+                                        if buf.len() + c.len() > MAX_INLINE_BYTES {
+                                            return Err("Page trop volumineuse".to_string());
+                                        }
+                                        buf.extend_from_slice(&c);
+                                    }
+                                    let html = String::from_utf8_lossy(&buf).to_string();
+                                    let text = html2text::from_read(html.as_bytes(), 2000);
+                                    Ok::<String, String>(text)
+                                });
+
+                                match res {
+                                    Ok(text) => {
+                                        self.inline_preview = Some(text);
+                                        self.inline_loading = false;
+                                    }
+                                    Err(err) => {
+                                        self.inline_error = Some(err);
+                                        self.inline_loading = false;
+                                    }
+                                }
+                            }
                         });
+
+                        // Affichage intégré (aperçu texte) sous l'article
+                        if let Some(current) = &self.inline_url {
+                            if current != &article.url {
+                                // Réinitialiser si on a changé d'article
+                                self.inline_preview = None;
+                                self.inline_error = None;
+                                self.inline_loading = false;
+                                self.inline_url = None;
+                            }
+                        }
+
+                        if self.inline_loading {
+                            ui.add_space(10.0);
+                            ui.label(egui::RichText::new("Chargement de l'article... Merci de patienter.").weak());
+                        } else if let Some(err) = &self.inline_error {
+                            ui.add_space(10.0);
+                            ui.label(egui::RichText::new(format!("Impossible d'afficher l'article ici: {}", err)).color(Color32::from_rgb(229,57,53)));
+                        } else if let Some(preview) = &self.inline_preview {
+                            ui.add_space(10.0);
+                            ui.separator();
+                            ui.label(egui::RichText::new("Aperçu de l'article (via le lien)" ).strong().size(16.0));
+                            ui.add_space(6.0);
+                            egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                                ui.label(egui::RichText::new(preview.clone()).size(14.0));
+                            });
+                        }
                     });
                 });
             });
