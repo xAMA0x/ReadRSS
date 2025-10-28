@@ -5,3 +5,6 @@ Cargo.lock
 .idea/
 .vscode/
 Images/
+\n+# Empêcher toute donnée utilisateur locale d'être commitée si jamais le fallback
+# utilise le répertoire courant (ex: ./readrss/*)
+/readrss/

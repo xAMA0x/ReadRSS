@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use atom_syndication as atom;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
-use atom_syndication as atom;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct FeedDescriptor {
@@ -60,9 +60,7 @@ impl FeedEntry {
             .and_then(|ext| ext.value.clone());
 
         // Extract image url from enclosure (basic approach)
-        let image_url = item
-            .enclosure()
-            .map(|e| e.url().to_string());
+        let image_url = item.enclosure().map(|e| e.url().to_string());
 
         Self {
             feed_id: feed_id.to_owned(),
@@ -94,19 +92,13 @@ impl FeedEntry {
     pub fn from_atom_entry(feed_id: &str, entry: &atom::Entry) -> Self {
         let published_at = entry
             .published()
-            .cloned()
-            .or_else(|| Some(entry.updated().clone()))
+            .copied()
+            .or_else(|| Some(*entry.updated()))
             .map(|dt| dt.with_timezone(&Utc));
 
-        let author = entry
-            .authors()
-            .first()
-            .map(|p| p.name.clone());
+        let author = entry.authors().first().map(|p| p.name.clone());
 
-        let category = entry
-            .categories()
-            .first()
-            .map(|c| c.term.clone());
+        let category = entry.categories().first().map(|c| c.term.clone());
 
         let url = entry
             .links()
@@ -115,9 +107,7 @@ impl FeedEntry {
             .unwrap_or_default();
 
         // Prefer inline content when available
-        let content_html = entry
-            .content()
-            .and_then(|c| c.value.clone());
+        let content_html = entry.content().and_then(|c| c.value.clone());
 
         // Image detection for Atom (optional): keep None for now
         let image_url = None;

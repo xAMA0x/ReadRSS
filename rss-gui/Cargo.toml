@@ -18,3 +18,13 @@ webbrowser = { workspace = true }
 dirs = { workspace = true }
 url = { workspace = true }
 html2text = { workspace = true }
+futures-util = { workspace = true }
+bytes = { workspace = true }
+fontdb = "0.16"
+
+[features]
+default = []
+
+ 
+
+ 

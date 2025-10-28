@@ -1,12 +1,16 @@
-use std::path::PathBuf;
-
 use rss_core::{shared_feed_list, DataApi, FeedDescriptor};
 
 #[tokio::test]
 async fn data_api_persists_feeds_and_read_state() {
     // Use a temp directory under the system temp
     let mut dir = std::env::temp_dir();
-    dir.push(format!("readrss_test_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()));
+    dir.push(format!(
+        "readrss_test_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    ));
     tokio::fs::create_dir_all(&dir).await.unwrap();
 
     let feeds = shared_feed_list(Vec::new());

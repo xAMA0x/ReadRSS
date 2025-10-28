@@ -25,7 +25,14 @@ Le service de poller démarre automatiquement avec l'interface. Ajoutez un flux 
 
 ### Configuration
 
-- Fichier de configuration optionnel: `~/.config/readrss/config.json`
+- Fichiers de configuration et données (par utilisateur): `~/.config/readrss/`
+
+	- `config.json` (optionnel)
+	- `feeds.json`, `read_store.json`, `articles_store.json`, `seen_store.json` (créés automatiquement)
+
+	Remarques:
+	- Ces fichiers résident dans le dossier de configuration utilisateur (hors dépôt Git).
+	- En cas de fallback exceptionnel (si `dirs::config_dir()` échoue), l’application pourra créer `./readrss/` à la racine du projet; ce répertoire est ignoré par Git via `.gitignore`.
 
 	Exemple:
 
@@ -39,6 +46,24 @@ Le service de poller démarre automatiquement avec l'interface. Ajoutez un flux 
 	```
 
 	Les valeurs sont en millisecondes pour `interval` et `retry_backoff_ms`. Si le fichier est absent, des valeurs par défaut sont utilisées.
+
+- Sécurité réseau
+  - Les flux doivent être servis en HTTPS (obligatoire). Les URLs en HTTP sont refusées (hors hôtes loopback utilisés pour les tests).
+
+### Affichage des emojis (Linux)
+
+Pour que les emojis s’affichent correctement, installez une police couvrant les emojis (par ex. Noto Color Emoji). Sur Debian/Ubuntu:
+
+```bash
+sudo apt-get update
+sudo apt-get install fonts-noto-color-emoji
+```
+
+L’application tente de charger automatiquement plusieurs polices systèmes (Noto Emoji / Noto Color Emoji / Noto Sans Symbols / DejaVu Sans). Si vous voyez encore des carrés, vérifiez que les polices existent dans `/usr/share/fonts/`.
+
+### Lecture des articles
+
+L’application n’intègre plus de WebView. Pour lire un article dans sa mise en page complète, utilisez le bouton « Ouvrir dans le navigateur »: le lien s’ouvrira dans votre navigateur par défaut. Cette approche évite les dépendances système lourdes et maximise la compatibilité.
 
 - Persistance anti-doublon: `~/.config/readrss/seen_store.json` (créé automatiquement). Ce fichier mémorise les articles déjà vus (par GUID/URL) pour éviter les doublons.
 
