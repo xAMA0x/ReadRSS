@@ -11,6 +11,60 @@ use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use url::Url;
 
+// Recommandations de flux (catégories prédéfinies)
+struct RecFeed {
+    title: &'static str,
+    url: &'static str,
+    desc: &'static str,
+}
+
+struct RecCategory {
+    name: &'static str,
+    feeds: &'static [RecFeed],
+}
+
+fn recommended_categories() -> &'static [RecCategory] {
+    const TECH: &[RecFeed] = &[
+        RecFeed { title: "Ars Technica", url: "https://arstechnica.com/feed/", desc: "Actualités et analyses high‑tech, science et société." },
+        RecFeed { title: "TechCrunch", url: "https://techcrunch.com/feed/", desc: "Startups, produits et innovations du monde de la tech." },
+        RecFeed { title: "The Register", url: "https://www.theregister.com/headlines.atom", desc: "IT, logiciels, matériel et industrie (ton décalé)." },
+        RecFeed { title: "Numerama", url: "https://www.numerama.com/feed/", desc: "Culture numérique, société, environnement et science (FR)." },
+        RecFeed { title: "Korben", url: "https://korben.info/feed", desc: "Veille tech, tips et découvertes (FR)." },
+    ];
+
+    const DEV: &[RecFeed] = &[
+        RecFeed { title: "Rust Blog", url: "https://blog.rust-lang.org/feed.xml", desc: "Annonces officielles du langage Rust." },
+        RecFeed { title: "GitHub Blog", url: "https://github.blog/feed/", desc: "Actualités GitHub, produits et écosystème open‑source." },
+        RecFeed { title: "Stack Overflow Blog", url: "https://stackoverflow.blog/feed/", desc: "Ingénierie, communauté et productivité." },
+        RecFeed { title: "Real Python", url: "https://realpython.com/atom.xml", desc: "Tutoriels Python et bonnes pratiques." },
+        RecFeed { title: "dev.to", url: "https://dev.to/feed", desc: "Articles communautaires sur le dev et les outils." },
+    ];
+
+    const SCIENCE: &[RecFeed] = &[
+        RecFeed { title: "NASA News", url: "https://www.nasa.gov/rss/dyn/breaking_news.rss", desc: "Dernières nouvelles de la NASA." },
+        RecFeed { title: "ScienceDaily (All)", url: "https://www.sciencedaily.com/rss/all.xml", desc: "Sélection d’articles de vulgarisation scientifique." },
+        RecFeed { title: "Nature – Latest", url: "https://www.nature.com/nature.rss", desc: "Publications et actualités de la revue Nature." },
+        RecFeed { title: "Quanta Magazine", url: "https://api.quantamagazine.org/feed/", desc: "Maths, physique, informatique et biologie théorique." },
+        RecFeed { title: "MIT News", url: "https://news.mit.edu/rss/topic/engineering", desc: "Recherches et innovations du MIT (ingénierie)." },
+    ];
+
+    const ACTU_FR: &[RecFeed] = &[
+        RecFeed { title: "Le Monde – Une", url: "https://www.lemonde.fr/rss/une.xml", desc: "Sélection des principaux titres du Monde (FR)." },
+        RecFeed { title: "France 24", url: "https://www.france24.com/fr/rss", desc: "Info internationale en continu (FR)." },
+        RecFeed { title: "Le Figaro – International", url: "https://www.lefigaro.fr/rss/figaro_international.xml", desc: "Actualité internationale (FR)." },
+        RecFeed { title: "ZDNet France", url: "https://www.zdnet.fr/feeds/rss/actualites/", desc: "Technologies et entreprises (FR)." },
+        RecFeed { title: "01net", url: "https://www.01net.com/feed/", desc: "High-tech, tests et dossiers (FR)." },
+    ];
+
+    const CATS: &[RecCategory] = &[
+        RecCategory { name: "Technologie", feeds: TECH },
+        RecCategory { name: "Programmation", feeds: DEV },
+        RecCategory { name: "Science", feeds: SCIENCE },
+        RecCategory { name: "Actualités (FR)", feeds: ACTU_FR },
+    ];
+    CATS
+}
+
 pub struct AppInit {
     pub runtime: Arc<Runtime>,
     pub feeds: SharedFeedList,
@@ -45,6 +99,9 @@ pub struct RssApp {
     feed_search: String,
     add_feedback: Option<(bool, String)>,
     show_unread_only: bool,
+    // Discover
+    show_discover: bool,
+    discover_feedback: Option<(bool, String)>,
 }
 
 impl RssApp {
@@ -66,6 +123,8 @@ impl RssApp {
             feed_search: String::new(),
             add_feedback: None,
             show_unread_only: false,
+            show_discover: false,
+            discover_feedback: None,
         };
         // Charger les articles persistés au démarrage (affichage immédiat)
         let persisted = app.runtime.block_on(app.data_api.list_all_articles());
@@ -185,6 +244,56 @@ impl RssApp {
         }
     }
 
+    fn follow_recommended(&mut self, title: &str, url: &str) {
+        // Éviter les doublons d'URL
+        let exists = self
+            .runtime
+            .block_on(list_feeds(&self.feeds))
+            .into_iter()
+            .any(|f| f.url == url);
+        if exists {
+            self.discover_feedback = Some((false, "Déjà suivi.".to_string()));
+            return;
+        }
+
+        let id = format!(
+            "discover:{}:{}",
+            title.replace(' ', "_"),
+            Utc::now().timestamp_millis()
+        );
+        let descriptor = FeedDescriptor {
+            id,
+            title: title.to_string(),
+            url: url.to_string(),
+        };
+
+        self.runtime
+            .block_on(self.data_api.add_feed(descriptor.clone()));
+        let events = self.runtime.block_on(async {
+            poll_once(
+                &[descriptor],
+                &self.poll_config,
+                &self.client,
+                &self.seen_store,
+            )
+            .await
+        });
+        for evt in events {
+            if let Event::NewArticles(feed_id, mut entries) = evt {
+                let to_persist = entries.clone();
+                self.runtime
+                    .block_on(self.data_api.upsert_articles(&feed_id, to_persist));
+                // Remplacer les articles existants de ce flux
+                self.articles.retain(|a| a.feed_id != feed_id);
+                self.articles.append(&mut entries);
+            }
+        }
+        self.articles
+            .sort_by(|a, b| b.published_at.cmp(&a.published_at));
+        self.articles.truncate(250);
+        self.discover_feedback = Some((true, "Ajouté.".to_string()));
+    }
+
     fn filtered_articles(&self) -> Vec<&FeedEntry> {
         if let Some(selected_feed_id) = &self.selected_feed {
             self.articles
@@ -297,6 +406,62 @@ impl RssApp {
 
                     ui.add_space(10.0);
 
+                    // Section Discover (entre Ajouter et Rechercher)
+                    ui.group(|group| {
+                        group.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    egui::RichText::new("🧭 Discover").strong().size(15.0),
+                                );
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui
+                                            .small_button(if self.show_discover { "Masquer" } else { "Afficher" })
+                                            .on_hover_text("Afficher des catégories de flux recommandés")
+                                            .clicked()
+                                        {
+                                            self.show_discover = !self.show_discover;
+                                        }
+                                    },
+                                );
+                            });
+
+                            if self.show_discover {
+                                ui.separator();
+
+                                if let Some((ok, msg)) = &self.discover_feedback {
+                                    let color = if *ok { Color32::from_rgb(67, 160, 71) } else { Color32::from_rgb(229,57,53) };
+                                    ui.label(egui::RichText::new(msg.clone()).color(color).size(13.0));
+                                }
+
+                                for cat in recommended_categories() {
+                                    egui::CollapsingHeader::new(cat.name)
+                                        .default_open(false)
+                                        .show(ui, |ui| {
+                                            for rf in cat.feeds {
+                                                ui.group(|g| {
+                                                    g.vertical(|ui| {
+                                                        ui.horizontal_wrapped(|ui| {
+                                                            ui.label(egui::RichText::new(rf.title).strong().size(14.0));
+                                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                                                if ui.small_button("Suivre").clicked() {
+                                                                    self.follow_recommended(rf.title, rf.url);
+                                                                }
+                                                            });
+                                                        });
+                                                        ui.label(egui::RichText::new(rf.desc).weak().size(12.0)).on_hover_text(rf.url);
+                                                    });
+                                                });
+                                            }
+                                        });
+                                }
+                            }
+                        });
+                    });
+
+                    ui.add_space(10.0);
+
                     // Section de recherche des flux
                     ui.group(|group| {
                         group.vertical(|ui| {
@@ -321,7 +486,7 @@ impl RssApp {
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
                                         // Rafraîchir tous les flux
-                                        if ui.small_button("⟳ Tout").on_hover_text("Rafraîchir tous les flux").clicked() {
+                                        if ui.small_button("⟳").on_hover_text("Rafraîchir tous les flux").clicked() {
                                             let feeds = self.feeds_snapshot();
                                             if !feeds.is_empty() {
                                                 let events = self.runtime.block_on(async {
