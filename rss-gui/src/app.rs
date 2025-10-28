@@ -498,6 +498,141 @@ impl RssApp {
                 });
             });
     }
+<<<<<<< HEAD
+=======
+
+    fn draw_settings(&mut self, ui: &mut egui::Ui) {
+        ui.heading(egui::RichText::new("⚙️ Paramètres").size(18.0));
+        ui.separator();
+        
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            // Section Thème
+            ui.group(|ui| {
+                ui.vertical(|ui| {
+                    ui.label(egui::RichText::new("🎨 Thème").strong().size(16.0));
+                    ui.separator();
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("Couleur d'arrière-plan:");
+                        let mut panel_color = [
+                            self.config.theme.panel_color[0] as f32 / 255.0,
+                            self.config.theme.panel_color[1] as f32 / 255.0,
+                            self.config.theme.panel_color[2] as f32 / 255.0,
+                        ];
+                        if ui.color_edit_button_rgb(&mut panel_color).changed() {
+                            self.config.theme.panel_color = [
+                                (panel_color[0] * 255.0) as u8,
+                                (panel_color[1] * 255.0) as u8,
+                                (panel_color[2] * 255.0) as u8,
+                            ];
+                            let _ = self.config.save();
+                        }
+                    });
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("Couleur contours:");
+                        let mut accent_color = [
+                            self.config.theme.accent_color[0] as f32 / 255.0,
+                            self.config.theme.accent_color[1] as f32 / 255.0,
+                            self.config.theme.accent_color[2] as f32 / 255.0,
+                        ];
+                        if ui.color_edit_button_rgb(&mut accent_color).changed() {
+                            self.config.theme.accent_color = [
+                                (accent_color[0] * 255.0) as u8,
+                                (accent_color[1] * 255.0) as u8,
+                                (accent_color[2] * 255.0) as u8,
+                            ];
+                            let _ = self.config.save();
+                        }
+                    });
+                    
+                    if ui.button("🔄 Réinitialiser aux valeurs par défaut").clicked() {
+                        self.config.theme = rss_core::ThemeConfig::default();
+                    }
+                });
+            });
+            ui.add_space(10.0);
+            
+            // Section Interface
+            ui.group(|ui| {
+                ui.vertical(|ui| {
+                    ui.label(egui::RichText::new("🖥️ Interface").strong().size(16.0));
+                    ui.separator();
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("Taille de police:");
+                        if ui.add(egui::Slider::new(&mut self.config.ui.font_size, 10.0..=24.0).suffix(" px")).changed() {
+                            let _ = self.config.save();
+                        }
+                    });
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("Largeur du panneau de gauche:");
+                        if ui.add(egui::Slider::new(&mut self.config.ui.left_panel_width, 200.0..=500.0).suffix(" px")).changed() {
+                            let _ = self.config.save();
+                        }
+                    });
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("Articles par page:");
+                        if ui.add(egui::Slider::new(&mut self.config.ui.articles_per_page, 10..=100)).changed() {
+                            let _ = self.config.save();
+                        }
+                    });
+                    
+                    if ui.checkbox(&mut self.config.ui.show_article_preview, "Afficher les aperçus d'articles").changed() {
+                        let _ = self.config.save();
+                    }
+                });
+            });
+            ui.add_space(10.0);
+            
+            // Section Flux RSS
+            ui.group(|ui| {
+                ui.vertical(|ui| {
+                    ui.label(egui::RichText::new("📡 Flux RSS").strong().size(16.0));
+                    ui.separator();
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("Intervalle de mise à jour:");
+                        ui.add(egui::Slider::new(&mut self.config.feeds.update_interval_minutes, 1..=120).suffix(" min"));
+                    });
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("Articles max par flux:");
+                        ui.add(egui::Slider::new(&mut self.config.feeds.max_articles_per_feed, 10..=500));
+                    });
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("Timeout des requêtes:");
+                        ui.add(egui::Slider::new(&mut self.config.feeds.request_timeout_seconds, 5..=60).suffix(" sec"));
+                    });
+                    
+                    ui.horizontal(|ui| {
+                        ui.label("Tentatives de réessai:");
+                        ui.add(egui::Slider::new(&mut self.config.feeds.retry_attempts, 1..=10));
+                    });
+                });
+            });
+            ui.add_space(20.0);
+            
+            // Bouton utile
+            ui.horizontal(|ui| {
+                if ui.button("🗂 Ouvrir dossier config").clicked() {
+                    if let Ok(config_path) = rss_core::AppConfig::config_file_path() {
+                        if let Some(parent) = config_path.parent() {
+                            let _ = std::process::Command::new("xdg-open")
+                                .arg(parent)
+                                .spawn();
+                        }
+                    }
+                }
+                
+                ui.label(egui::RichText::new("💡 Les modifications sont sauvegardées automatiquement").size(12.0).weak());
+            });
+        });
+    }
+>>>>>>> dd29e94 (refactor: Suppression boutons inutiles dans paramètres)
 }
 
 impl Drop for RssApp {
