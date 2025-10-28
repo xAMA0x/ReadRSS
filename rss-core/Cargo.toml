@@ -15,6 +15,9 @@ chrono = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 atom_syndication = { workspace = true }
+url = { workspace = true }
+futures-util = { workspace = true }
+bytes = { workspace = true }
 
 [dev-dependencies]
 httpmock = "0.7"

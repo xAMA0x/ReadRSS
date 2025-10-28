@@ -3,6 +3,8 @@ use std::time::Duration;
 
 use chrono::Utc;
 use reqwest::Client;
+use url::Url;
+use futures_util::StreamExt;
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
@@ -101,8 +103,37 @@ async fn fetch_feed(
     feed: &FeedDescriptor,
     timeout: Duration,
 ) -> Result<Vec<FeedEntry>, PollError> {
-    let response = client.get(feed.url.clone()).timeout(timeout).send().await?;
-    let bytes = response.bytes().await?;
+    // HTTPS policy enforced in production
+    let url = Url::parse(&feed.url)?;
+    #[cfg(not(test))]
+    if url.scheme() != "https" {
+        // Autoriser HTTP uniquement en loopback pour tests/développement local
+        let host_ok = match url.host_str() {
+            Some("localhost") | Some("127.0.0.1") | Some("::1") => true,
+            _ => false,
+        };
+        if !host_ok {
+            return Err(PollError::UnsupportedScheme);
+        }
+    }
+
+    const MAX_FEED_BYTES: usize = 10 * 1024 * 1024; // 10 MiB
+    let response = client.get(url).timeout(timeout).send().await?;
+    if let Some(len) = response.content_length() {
+        if len > MAX_FEED_BYTES as u64 {
+            return Err(PollError::TooLarge(len));
+        }
+    }
+    let mut bytes_buf = bytes::BytesMut::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        if bytes_buf.len() + chunk.len() > MAX_FEED_BYTES {
+            return Err(PollError::TooLarge((bytes_buf.len() + chunk.len()) as u64));
+        }
+        bytes_buf.extend_from_slice(&chunk);
+    }
+    let bytes = bytes_buf.freeze();
     // Try RSS first
     let mut cursor_rss = std::io::Cursor::new(bytes.to_vec());
     match rss::Channel::read_from(&mut cursor_rss) {

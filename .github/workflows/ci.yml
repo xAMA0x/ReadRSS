@@ -21,3 +21,11 @@ jobs:
         run: cargo test --workspace --all-features
       - name: Cargo build
         run: cargo build --workspace --release
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Security audit (cargo-audit)
+        run: cargo audit --deny warnings
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+      - name: Dependency policy (cargo-deny)
+        run: cargo deny check --all-features

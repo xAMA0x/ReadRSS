@@ -100,7 +100,7 @@ pub struct AppInit {
 #[derive(Debug, Clone)]
 enum AppView {
     ArticleList,
-    ArticleDetail(FeedEntry),
+    ArticleDetail(Box<FeedEntry>),
     DiscoverHome,
     DiscoverCategory(String),
 }
@@ -123,7 +123,6 @@ pub struct RssApp {
     add_feedback: Option<(bool, String)>,
     show_unread_only: bool,
     // Discover
-    show_discover: bool,
     discover_feedback: Option<(bool, String)>,
 }
 
@@ -146,7 +145,6 @@ impl RssApp {
             feed_search: String::new(),
             add_feedback: None,
             show_unread_only: false,
-            show_discover: false,
             discover_feedback: None,
         };
         // Charger les articles persistés au démarrage (affichage immédiat)
@@ -162,9 +160,8 @@ impl RssApp {
                 poll_once(&feeds, &app.poll_config, &app.client, &app.seen_store).await
             });
             for evt in events {
-                if let Event::NewArticles(_, mut entries) = evt {
-                    app.articles.append(&mut entries);
-                }
+                let Event::NewArticles(_, mut entries) = evt;
+                app.articles.append(&mut entries);
             }
             app.articles
                 .sort_by(|a, b| b.published_at.cmp(&a.published_at));
@@ -371,14 +368,13 @@ impl RssApp {
             .await
         });
         for evt in events {
-            if let Event::NewArticles(feed_id, mut entries) = evt {
-                let to_persist = entries.clone();
-                self.runtime
-                    .block_on(self.data_api.upsert_articles(&feed_id, to_persist));
-                // Remplacer les articles existants de ce flux
-                self.articles.retain(|a| a.feed_id != feed_id);
-                self.articles.append(&mut entries);
-            }
+            let Event::NewArticles(feed_id, mut entries) = evt;
+            let to_persist = entries.clone();
+            self.runtime
+                .block_on(self.data_api.upsert_articles(&feed_id, to_persist));
+            // Remplacer les articles existants de ce flux
+            self.articles.retain(|a| a.feed_id != feed_id);
+            self.articles.append(&mut entries);
         }
         self.articles
             .sort_by(|a, b| b.published_at.cmp(&a.published_at));
@@ -400,7 +396,17 @@ impl RssApp {
     fn add_feed_from_input(&mut self) {
         let title_owned = self.new_feed_title.trim().to_string();
         let url_owned = self.new_feed_url.trim().to_string();
-        if url_owned.is_empty() || Url::parse(&url_owned).is_err() {
+        if url_owned.is_empty() {
+            self.add_feedback = Some((false, "URL invalide".to_string()));
+            return;
+        }
+        // Exiger HTTPS
+        if let Ok(parsed) = Url::parse(&url_owned) {
+            if parsed.scheme() != "https" {
+                self.add_feedback = Some((false, "Seules les URLs HTTPS sont autorisées".to_string()));
+                return;
+            }
+        } else {
             self.add_feedback = Some((false, "URL invalide".to_string()));
             return;
         }
@@ -548,13 +554,12 @@ impl RssApp {
                                                     poll_once(&feeds, &self.poll_config, &self.client, &self.seen_store).await
                                                 });
                                                 for evt in events {
-                                                    if let Event::NewArticles(feed_id, mut entries) = evt {
-                                                        let to_persist = entries.clone();
-                                                        self.runtime.block_on(self.data_api.upsert_articles(&feed_id, to_persist));
-                                                        // Remplacer les articles de ce flux
-                                                        self.articles.retain(|a| a.feed_id != feed_id);
-                                                        self.articles.append(&mut entries);
-                                                    }
+                                                    let Event::NewArticles(feed_id, mut entries) = evt;
+                                                    let to_persist = entries.clone();
+                                                    self.runtime.block_on(self.data_api.upsert_articles(&feed_id, to_persist));
+                                                    // Remplacer les articles de ce flux
+                                                    self.articles.retain(|a| a.feed_id != feed_id);
+                                                    self.articles.append(&mut entries);
                                                 }
                                                 self.articles.sort_by(|a, b| b.published_at.cmp(&a.published_at));
                                                 self.articles.truncate(250);
@@ -619,19 +624,14 @@ impl RssApp {
                                                         .await
                                                     });
                                                     for evt in events {
-                                                        if let Event::NewArticles(
-                                                            feed_id,
-                                                            mut entries,
-                                                        ) = evt
-                                                        {
-                                                            let to_persist = entries.clone();
-                                                            self.runtime.block_on(
-                                                                self.data_api.upsert_articles(
-                                                                    &feed_id, to_persist,
-                                                                ),
-                                                            );
-                                                            self.articles.append(&mut entries);
-                                                        }
+                                                        let Event::NewArticles(feed_id, mut entries) = evt;
+                                                        let to_persist = entries.clone();
+                                                        self.runtime.block_on(
+                                                            self.data_api.upsert_articles(
+                                                                &feed_id, to_persist,
+                                                            ),
+                                                        );
+                                                        self.articles.append(&mut entries);
                                                     }
                                                     self.articles.sort_by(|a, b| {
                                                         b.published_at.cmp(&a.published_at)
@@ -682,23 +682,18 @@ impl RssApp {
                                                             .await
                                                         });
                                                         for evt in events {
-                                                            if let Event::NewArticles(
-                                                                feed_id,
-                                                                mut entries,
-                                                            ) = evt
-                                                            {
-                                                                let to_persist = entries.clone();
-                                                                self.runtime.block_on(
-                                                                    self.data_api.upsert_articles(
-                                                                        &feed_id, to_persist,
-                                                                    ),
-                                                                );
-                                                                // Remplacer les articles de ce flux dans la vue
-                                                                self.articles.retain(|a| {
-                                                                    a.feed_id != feed_id
-                                                                });
-                                                                self.articles.append(&mut entries);
-                                                            }
+                                                            let Event::NewArticles(feed_id, mut entries) = evt;
+                                                            let to_persist = entries.clone();
+                                                            self.runtime.block_on(
+                                                                self.data_api.upsert_articles(
+                                                                    &feed_id, to_persist,
+                                                                ),
+                                                            );
+                                                            // Remplacer les articles de ce flux dans la vue
+                                                            self.articles.retain(|a| {
+                                                                a.feed_id != feed_id
+                                                            });
+                                                            self.articles.append(&mut entries);
                                                         }
                                                         self.articles.sort_by(|a, b| {
                                                             b.published_at.cmp(&a.published_at)
@@ -727,7 +722,7 @@ impl RssApp {
     fn draw_main_content(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| match &self.current_view {
             AppView::ArticleList => self.draw_article_list(ui),
-            AppView::ArticleDetail(article) => self.draw_article_detail(ui, article.clone()),
+            AppView::ArticleDetail(article) => self.draw_article_detail(ui, (**article).clone()),
             AppView::DiscoverHome => self.draw_discover_home(ui),
             AppView::DiscoverCategory(name) => self.draw_discover_category(ui, name.clone()),
         });
@@ -789,16 +784,16 @@ impl RssApp {
                 ui.add_space(4.0);
 
                 for article in articles {
-                    // Filtre "Non lus" si activé
-                    if self.show_unread_only {
-                        if self.runtime.block_on(self.data_api.is_read(&article)) {
-                            continue;
-                        }
+                    // Filtre "Non lus" si activé (if collapsé)
+                    if self.show_unread_only
+                        && self.runtime.block_on(self.data_api.is_read(&article))
+                    {
+                        continue;
                     }
                     egui::Frame::group(ui.style()).show(ui, |ui| {
                         // Assurer une largeur pleine et une hauteur minimale pour homogénéiser la première carte
                         ui.set_width(ui.available_width());
-                        ui.set_min_height(110.0);
+                        ui.set_min_height(128.0);
                         ui.vertical(|ui| {
                             // État de lecture
                             let is_read = self.runtime.block_on(self.data_api.is_read(&article));
@@ -819,7 +814,7 @@ impl RssApp {
                             );
 
                             if title_response.clicked() {
-                                self.current_view = AppView::ArticleDetail(article.clone());
+                                self.current_view = AppView::ArticleDetail(Box::new(article.clone()));
                                 self.runtime.block_on(self.data_api.mark_read(&article));
                             }
 
@@ -881,7 +876,7 @@ impl RssApp {
                             // Boutons d'action
                             ui.horizontal(|ui| {
                                 if ui.small_button("📖 Lire").clicked() {
-                                    self.current_view = AppView::ArticleDetail(article.clone());
+                                    self.current_view = AppView::ArticleDetail(Box::new(article.clone()));
                                     self.runtime.block_on(self.data_api.mark_read(&article));
                                 }
 
@@ -908,10 +903,22 @@ impl RssApp {
                                     .cloned()
                                     .unwrap_or_else(|| "Flux inconnu".to_string());
                                 let color = color_for_feed(&article.feed_id);
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    let pill = egui::RichText::new(feed_name).color(color).size(12.0);
-                                    ui.label(pill);
-                                });
+                                // Réserver une ligne fixe en bas pour éviter les variations de hauteur
+                                let bar_h = 16.0;
+                                let width = ui.available_width();
+                                ui.allocate_ui_with_layout(
+                                    egui::vec2(width, bar_h),
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        // Libellé tronqué pour éviter le retour à la ligne
+                                        let max_w = 180.0;
+                                        let label = egui::Label::new(
+                                            egui::RichText::new(feed_name).color(color).size(12.0),
+                                        )
+                                        .truncate(true);
+                                        ui.add_sized(egui::vec2(max_w, 14.0), label);
+                                    },
+                                );
                             }
                         });
                     });

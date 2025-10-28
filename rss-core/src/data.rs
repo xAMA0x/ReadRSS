@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, warn};
 
@@ -37,28 +37,37 @@ impl DataApi {
             warn!(error = %e, "failed to create config dir");
         }
 
+        // helper: read JSON with fallback to temp file on corruption
+        async fn read_json_with_tmp_fallback<T: DeserializeOwned + Default>(path: &Path) -> T {
+            match tokio::fs::read(path).await {
+                Ok(bytes) => match serde_json::from_slice::<T>(&bytes) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        warn!(error = %e, path = %path.display(), "failed to parse JSON, trying tmp fallback");
+                        let tmp = path.with_extension("json.tmp");
+                        match tokio::fs::read(&tmp).await {
+                            Ok(tmp_bytes) => serde_json::from_slice::<T>(&tmp_bytes).unwrap_or_default(),
+                            Err(_) => Default::default(),
+                        }
+                    }
+                },
+                Err(_) => Default::default(),
+            }
+        }
+
         // Load feeds.json and populate the shared store
-        let initial_feeds: Vec<FeedDescriptor> = match tokio::fs::read(&feeds_path).await {
-            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
-            Err(_) => Vec::new(),
-        };
+        let initial_feeds: Vec<FeedDescriptor> = read_json_with_tmp_fallback(&feeds_path).await;
         if !initial_feeds.is_empty() {
             let mut store = feeds.write().await;
             *store = initial_feeds;
         }
 
         // Load read_store.json
-        let read_inner = match tokio::fs::read(&read_path).await {
-            Ok(bytes) => serde_json::from_slice::<ReadData>(&bytes).unwrap_or_default(),
-            Err(_) => ReadData::default(),
-        };
+        let read_inner: ReadData = read_json_with_tmp_fallback(&read_path).await;
 
         // Load articles_store.json (cache des derniers articles)
-        let articles_inner = match tokio::fs::read(&articles_path).await {
-            Ok(bytes) => serde_json::from_slice::<HashMap<String, Vec<FeedEntry>>>(&bytes)
-                .unwrap_or_default(),
-            Err(_) => HashMap::new(),
-        };
+        let articles_inner: HashMap<String, Vec<FeedEntry>> =
+            read_json_with_tmp_fallback(&articles_path).await;
 
         Self {
             feeds,
@@ -77,7 +86,12 @@ impl DataApi {
                 if let Some(parent) = self.feeds_path.parent() {
                     let _ = tokio::fs::create_dir_all(parent).await;
                 }
-                if let Err(e) = tokio::fs::write(&self.feeds_path, bytes).await {
+                // Ecriture atomique
+                let tmp = self.feeds_path.with_extension("json.tmp");
+                if let Err(e) = tokio::fs::write(&tmp, &bytes).await {
+                    warn!(error = %e, path = %tmp.display(), "failed to write temp feeds.json");
+                }
+                if let Err(e) = tokio::fs::rename(&tmp, &self.feeds_path).await {
                     warn!(error = %e, path = %self.feeds_path.display(), "failed to persist feeds.json");
                 }
             }
@@ -92,7 +106,11 @@ impl DataApi {
                 if let Some(parent) = self.read_path.parent() {
                     let _ = tokio::fs::create_dir_all(parent).await;
                 }
-                if let Err(e) = tokio::fs::write(&self.read_path, bytes).await {
+                let tmp = self.read_path.with_extension("json.tmp");
+                if let Err(e) = tokio::fs::write(&tmp, &bytes).await {
+                    warn!(error = %e, path = %tmp.display(), "failed to write temp read_store.json");
+                }
+                if let Err(e) = tokio::fs::rename(&tmp, &self.read_path).await {
                     warn!(error = %e, path = %self.read_path.display(), "failed to persist read_store.json");
                 }
             }
@@ -107,7 +125,11 @@ impl DataApi {
                 if let Some(parent) = self.articles_path.parent() {
                     let _ = tokio::fs::create_dir_all(parent).await;
                 }
-                if let Err(e) = tokio::fs::write(&self.articles_path, bytes).await {
+                let tmp = self.articles_path.with_extension("json.tmp");
+                if let Err(e) = tokio::fs::write(&tmp, &bytes).await {
+                    warn!(error = %e, path = %tmp.display(), "failed to write temp articles_store.json");
+                }
+                if let Err(e) = tokio::fs::rename(&tmp, &self.articles_path).await {
                     warn!(error = %e, path = %self.articles_path.display(), "failed to persist articles_store.json");
                 }
             }

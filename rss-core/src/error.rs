@@ -10,4 +10,10 @@ pub enum PollError {
     Task(#[from] tokio::task::JoinError),
     #[error("update channel closed unexpectedly")]
     UpdateChannelClosed,
+    #[error("unsupported URL scheme (https required)")]
+    UnsupportedScheme,
+    #[error("invalid feed url: {0}")]
+    InvalidUrl(#[from] url::ParseError),
+    #[error("feed too large: {0} bytes")] 
+    TooLarge(u64),
 }

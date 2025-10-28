@@ -2,8 +2,8 @@ mod app;
 
 use std::sync::Arc;
 
-use eframe::NativeOptions;
-use reqwest::Client;
+use eframe::{egui, NativeOptions};
+use reqwest::{redirect, ClientBuilder};
 use rss_core::{shared_feed_list, spawn_poller, DataApi, PollConfig, SeenStore};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -17,7 +17,11 @@ fn main() -> eframe::Result<()> {
     let runtime = Arc::new(Runtime::new().expect("failed to initialise Tokio runtime"));
     let feed_store = shared_feed_list(Vec::new());
     let (update_tx, update_rx) = mpsc::channel(64);
-    let client = Client::new();
+    let client = ClientBuilder::new()
+        .redirect(redirect::Policy::limited(5))
+        .user_agent("ReadRSS/0.1 (+https://github.com/xAMA0x/ReadRSS)")
+        .build()
+        .expect("failed to build HTTP client");
     let client_for_app = client.clone();
     let poll_config = load_poll_config();
     let seen_store = load_seen_store(&runtime);
@@ -51,7 +55,10 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "ReadRSS",
         NativeOptions::default(),
-        Box::new(move |_cc| Box::new(RssApp::new(init))),
+        Box::new(move |cc| {
+            install_emoji_friendly_fonts(&cc.egui_ctx);
+            Box::new(RssApp::new(init))
+        }),
     )
 }
 
@@ -89,4 +96,43 @@ fn load_data_api(runtime: &Arc<Runtime>, feeds: rss_core::SharedFeedList) -> Arc
     let dir = config_dir();
     let api = runtime.block_on(DataApi::load_from_dir(feeds, dir));
     Arc::new(api)
+}
+
+fn install_emoji_friendly_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+
+    // Liste de polices candidates (Linux)
+    let candidates = [
+        // Emoji (couleur, peut s'afficher en monochrome si non supporté)
+        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+        "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
+        // Symboles étendus
+        "/usr/share/fonts/opentype/noto/NotoSansSymbols2-Regular.otf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ];
+
+    let mut added: Vec<String> = Vec::new();
+    for path in candidates.iter() {
+        if let Ok(bytes) = std::fs::read(path) {
+            let name = format!("embedded-{}", added.len());
+            fonts.font_data.insert(name.clone(), egui::FontData::from_owned(bytes));
+            // Ajouter à la famille proportionnelle en dernier pour servir de fallback
+            fonts
+                .families
+                .entry(egui::FontFamily::Proportional)
+                .or_default()
+                .push(name.clone());
+            // Et aussi à monospace
+            fonts
+                .families
+                .entry(egui::FontFamily::Monospace)
+                .or_default()
+                .push(name.clone());
+            added.push(name);
+        }
+    }
+
+    if !added.is_empty() {
+        ctx.set_fonts(fonts);
+    }
 }
