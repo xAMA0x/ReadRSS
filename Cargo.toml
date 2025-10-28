@@ -27,4 +27,4 @@ eframe = { version = "0.27", default-features = false, features = ["wgpu", "wayl
 egui = "0.27"
 webbrowser = "0.8"
 dirs = "5"
->>>>>>> 0bdc301 (feat(core): robust poller (timeouts, retries, backoff) + persistent dedup store; events to GUI; tests & CI; docs; use isolated target-local (ignored)\n\n- Add PollConfig with request timeout, retries/backoff\n- SeenStore JSON persistence and dedup via FeedEntry::identity()\n- Event::NewArticles, spawn_poller filters seen and emits\n- poll_once helper + httpmock-based tests\n- GUI consumes events; config/seen loaded from ~/.config/readrss\n- CI workflow (fmt, clippy -D warnings, test, build)\n- VS Code tasks and docs (QA & packaging)\n- .cargo target-dir set to target-local and ignored)
+
