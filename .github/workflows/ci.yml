@@ -10,9 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-rust@v1
+
+      # Installe Rust (stable) + composants
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          rust-version: stable
+          components: rustfmt, clippy
+          # targets: wasm32-unknown-unknown  # si besoin
+
+      # Cache cargo (optionnel mais recommandé)
+      - uses: Swatinem/rust-cache@v2
+
       - name: Cargo fmt
         run: cargo fmt --all -- --check
       - name: Cargo clippy
