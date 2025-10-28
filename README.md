@@ -25,7 +25,14 @@ Le service de poller démarre automatiquement avec l'interface. Ajoutez un flux 
 
 ### Configuration
 
-- Fichier de configuration optionnel: `~/.config/readrss/config.json`
+- Fichiers de configuration et données (par utilisateur): `~/.config/readrss/`
+
+	- `config.json` (optionnel)
+	- `feeds.json`, `read_store.json`, `articles_store.json`, `seen_store.json` (créés automatiquement)
+
+	Remarques:
+	- Ces fichiers résident dans le dossier de configuration utilisateur (hors dépôt Git).
+	- En cas de fallback exceptionnel (si `dirs::config_dir()` échoue), l’application pourra créer `./readrss/` à la racine du projet; ce répertoire est ignoré par Git via `.gitignore`.
 
 	Exemple:
 
@@ -39,6 +46,9 @@ Le service de poller démarre automatiquement avec l'interface. Ajoutez un flux 
 	```
 
 	Les valeurs sont en millisecondes pour `interval` et `retry_backoff_ms`. Si le fichier est absent, des valeurs par défaut sont utilisées.
+
+- Sécurité réseau
+  - Les flux doivent être servis en HTTPS (obligatoire). Les URLs en HTTP sont refusées (hors hôtes loopback utilisés pour les tests).
 
 - Persistance anti-doublon: `~/.config/readrss/seen_store.json` (créé automatiquement). Ce fichier mémorise les articles déjà vus (par GUID/URL) pour éviter les doublons.
 
