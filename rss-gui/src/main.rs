@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use eframe::NativeOptions;
 use reqwest::Client;
-use rss_core::{shared_feed_list, spawn_poller, PollConfig, SeenStore};
+use rss_core::{shared_feed_list, spawn_poller, DataApi, PollConfig, SeenStore};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
@@ -18,14 +18,17 @@ fn main() -> eframe::Result<()> {
     let feed_store = shared_feed_list(Vec::new());
     let (update_tx, update_rx) = mpsc::channel(64);
     let client = Client::new();
+    let client_for_app = client.clone();
     let poll_config = load_poll_config();
     let seen_store = load_seen_store(&runtime);
+    let seen_for_app = seen_store.clone();
+    let data_api = load_data_api(&runtime, feed_store.clone());
 
     let poller = {
         let guard = runtime.enter();
         let handle = spawn_poller(
             feed_store.clone(),
-            poll_config,
+            poll_config.clone(),
             client,
             update_tx,
             seen_store,
@@ -39,6 +42,10 @@ fn main() -> eframe::Result<()> {
         feeds: feed_store,
         poller,
         updates: update_rx,
+        data_api,
+        client: client_for_app,
+        poll_config,
+        seen_store: seen_for_app,
     };
 
     eframe::run_native(
@@ -76,4 +83,10 @@ fn load_seen_store(runtime: &Arc<Runtime>) -> SeenStore {
     let mut path = config_dir();
     path.push("seen_store.json");
     runtime.block_on(SeenStore::load_from(&path))
+}
+
+fn load_data_api(runtime: &Arc<Runtime>, feeds: rss_core::SharedFeedList) -> Arc<DataApi> {
+    let dir = config_dir();
+    let api = runtime.block_on(DataApi::load_from_dir(feeds, dir));
+    Arc::new(api)
 }

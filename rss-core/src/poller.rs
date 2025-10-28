@@ -103,22 +103,48 @@ async fn fetch_feed(
 ) -> Result<Vec<FeedEntry>, PollError> {
     let response = client.get(feed.url.clone()).timeout(timeout).send().await?;
     let bytes = response.bytes().await?;
-    let mut cursor = std::io::Cursor::new(bytes.to_vec());
-    let channel = rss::Channel::read_from(&mut cursor)?;
-
-    let entries = channel
-        .items()
-        .iter()
-        .map(|item| {
-            let mut entry = FeedEntry::from_rss_item(&feed.id, item);
-            if entry.published_at.is_none() {
-                entry.published_at = Some(Utc::now());
+    // Try RSS first
+    let mut cursor_rss = std::io::Cursor::new(bytes.to_vec());
+    match rss::Channel::read_from(&mut cursor_rss) {
+        Ok(channel) => {
+            let entries = channel
+                .items()
+                .iter()
+                .map(|item| {
+                    let mut entry = FeedEntry::from_rss_item(&feed.id, item);
+                    if entry.published_at.is_none() {
+                        entry.published_at = Some(Utc::now());
+                    }
+                    entry
+                })
+                .collect();
+            Ok(entries)
+        }
+        Err(rss_err) => {
+            // Fallback: try Atom
+            let mut cursor = std::io::Cursor::new(bytes.to_vec());
+            match atom_syndication::Feed::read_from(&mut cursor) {
+                Ok(atom_feed) => {
+                    let entries = atom_feed
+                        .entries()
+                        .iter()
+                        .map(|e| {
+                            let mut entry = FeedEntry::from_atom_entry(&feed.id, e);
+                            if entry.published_at.is_none() {
+                                entry.published_at = Some(Utc::now());
+                            }
+                            entry
+                        })
+                        .collect();
+                    Ok(entries)
+                }
+                Err(_e2) => {
+                    // Return the original RSS parse error for compatibility
+                    Err(PollError::from(rss_err))
+                }
             }
-            entry
-        })
-        .collect();
-
-    Ok(entries)
+        }
+    }
 }
 
 async fn fetch_feed_with_retries(
