@@ -2,7 +2,7 @@ use httpmock::prelude::*;
 use reqwest::Client;
 use tokio::sync::mpsc;
 
-use rss_core::{shared_feed_list, spawn_poller, Event, FeedDescriptor, PollConfig, SeenStore};
+use rss_core::{shared_feed_list, Event, FeedDescriptor, PollConfig, SeenStore};
 
 #[tokio::test]
 async fn spawn_poller_emits_event() {
@@ -20,7 +20,12 @@ async fn spawn_poller_emits_event() {
         url: format!("{}/feed", server.base_url()),
     }]);
 
-    let cfg = PollConfig { interval: std::time::Duration::from_millis(50), request_timeout: std::time::Duration::from_secs(2), max_retries: 1, retry_backoff_ms: 10 };
+    let cfg = PollConfig {
+        interval: std::time::Duration::from_millis(50),
+        request_timeout: std::time::Duration::from_secs(2),
+        max_retries: 1,
+        retry_backoff_ms: 10,
+    };
     let client = Client::new();
     let (tx, mut rx) = mpsc::channel(8);
     let seen = SeenStore::in_memory();
