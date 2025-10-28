@@ -48,7 +48,7 @@ pub struct RssApp {
 
 impl RssApp {
     pub fn new(init: AppInit) -> Self {
-        Self {
+        let mut app = Self {
             runtime: init.runtime,
             feeds: init.feeds,
             poller: Some(init.poller),
@@ -64,7 +64,25 @@ impl RssApp {
             current_view: AppView::ArticleList,
             feed_search: String::new(),
             add_feedback: None,
+        };
+
+        // Pré-remplir les articles au démarrage (poll initial de tous les flux)
+        let feeds = app.runtime.block_on(list_feeds(&app.feeds));
+        if !feeds.is_empty() {
+            let events = app.runtime.block_on(async {
+                poll_once(&feeds, &app.poll_config, &app.client, &app.seen_store).await
+            });
+            for evt in events {
+                if let Event::NewArticles(_, mut entries) = evt {
+                    app.articles.append(&mut entries);
+                }
+            }
+            app.articles
+                .sort_by(|a, b| b.published_at.cmp(&a.published_at));
+            app.articles.truncate(250);
         }
+
+        app
     }
 
     fn setup_dark_theme(&self, ctx: &egui::Context) {
@@ -301,6 +319,25 @@ impl RssApp {
 
                                             if response.clicked() {
                                                 self.selected_feed = Some(feed.id.clone());
+                                                // Si aucun article pour ce flux, tenter un fetch immédiat
+                                                let has_any = self
+                                                    .articles
+                                                    .iter()
+                                                    .any(|a| a.feed_id == feed.id);
+                                                if !has_any {
+                                                    let fd = feed.clone();
+                                                    let events = self.runtime.block_on(async {
+                                                        poll_once(&[fd], &self.poll_config, &self.client, &self.seen_store).await
+                                                    });
+                                                    for evt in events {
+                                                        if let Event::NewArticles(_, mut entries) = evt {
+                                                            self.articles.append(&mut entries);
+                                                        }
+                                                    }
+                                                    self.articles
+                                                        .sort_by(|a, b| b.published_at.cmp(&a.published_at));
+                                                    self.articles.truncate(250);
+                                                }
                                             }
                                             response.on_hover_text(&feed.url);
 
@@ -433,7 +470,7 @@ impl RssApp {
                             let preview_text = if let Some(html) = &article.content_html {
                                 html2text::from_read(html.as_bytes(), 100)
                             } else if let Some(summary) = &article.summary {
-                                summary.clone()
+                                html2text::from_read(summary.as_bytes(), 100)
                             } else {
                                 String::new()
                             };
@@ -526,7 +563,8 @@ impl RssApp {
                             let text = html2text::from_read(html.as_bytes(), 100);
                             ui.label(egui::RichText::new(text).size(15.0));
                         } else if let Some(summary) = &article.summary {
-                            ui.label(egui::RichText::new(summary).size(15.0));
+                            let text = html2text::from_read(summary.as_bytes(), 100);
+                            ui.label(egui::RichText::new(text).size(15.0));
                         } else {
                             ui.label(
                                 egui::RichText::new("Aucun contenu disponible")
