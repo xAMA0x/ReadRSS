@@ -57,6 +57,22 @@ impl FeedEntry {
             category,
         }
     }
+
+    /// Returns a stable identity string for deduplication.
+    /// Priority: GUID > URL > title+timestamp hash
+    pub fn identity(&self) -> String {
+        if let Some(g) = &self.guid {
+            return format!("guid:{}", g);
+        }
+        if !self.url.is_empty() {
+            return format!("url:{}", self.url);
+        }
+        let ts = self
+            .published_at
+            .map(|d| d.timestamp())
+            .unwrap_or_default();
+        format!("title:{}@{}", self.title, ts)
+    }
 }
 
 pub type SharedFeedList = Arc<RwLock<Vec<FeedDescriptor>>>;

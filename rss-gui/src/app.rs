@@ -3,7 +3,8 @@ use std::sync::Arc;
 use chrono::Utc;
 use eframe::egui::{self, Color32, Rounding, Stroke};
 use rss_core::{
-    add_feed, list_feeds, remove_feed, FeedDescriptor, FeedEntry, PollerHandle, SharedFeedList,
+    add_feed, list_feeds, remove_feed, Event, FeedDescriptor, FeedEntry, PollerHandle,
+    SharedFeedList,
 };
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -12,7 +13,7 @@ pub struct AppInit {
     pub runtime: Arc<Runtime>,
     pub feeds: SharedFeedList,
     pub poller: PollerHandle,
-    pub updates: mpsc::Receiver<Vec<FeedEntry>>,
+    pub updates: mpsc::Receiver<Event>,
 }
 
 #[derive(Debug, Clone)]
@@ -25,7 +26,7 @@ pub struct RssApp {
     runtime: Arc<Runtime>,
     feeds: SharedFeedList,
     poller: Option<PollerHandle>,
-    updates: mpsc::Receiver<Vec<FeedEntry>>,
+    updates: mpsc::Receiver<Event>,
     articles: Vec<FeedEntry>,
     new_feed_title: String,
     new_feed_url: String,
@@ -102,11 +103,15 @@ impl RssApp {
     }
 
     fn refresh_updates(&mut self) {
-        while let Ok(mut entries) = self.updates.try_recv() {
-            self.articles.append(&mut entries);
-            self.articles
-                .sort_by(|a, b| b.published_at.cmp(&a.published_at));
-            self.articles.truncate(250);
+        while let Ok(evt) = self.updates.try_recv() {
+            match evt {
+                Event::NewArticles(_feed_id, mut entries) => {
+                    self.articles.append(&mut entries);
+                    self.articles
+                        .sort_by(|a, b| b.published_at.cmp(&a.published_at));
+                    self.articles.truncate(250);
+                }
+            }
         }
     }
 

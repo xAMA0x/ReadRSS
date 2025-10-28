@@ -12,6 +12,7 @@ Lecteur RSS modulaire en Rust comprenant un service d'actualisation en arrière-
 - Rust 1.78 ou supérieur (`rustup` recommandé)
 - Cible système compatible `wgpu` (Windows, Linux ou macOS récent)
 - Accès réseau sortant pour récupérer les flux RSS
+ - Linux: bibliothèques système usuelles pour `winit`/`wgpu` (X11 et/ou Wayland). Sur Ubuntu/Debian, si nécessaire: `libx11-dev`, `libwayland-dev`, `libxkbcommon-dev`.
 
 ## Démarrage rapide
 
@@ -22,11 +23,39 @@ Lecteur RSS modulaire en Rust comprenant un service d'actualisation en arrière-
 
 Le service de poller démarre automatiquement avec l'interface. Ajoutez un flux via le panneau latéral en saisissant son titre et son URL.
 
+### Configuration
+
+- Fichier de configuration optionnel: `~/.config/readrss/config.json`
+
+	Exemple:
+
+	```json
+	{
+		"interval": 120000,
+		"request_timeout": 15000,
+		"max_retries": 3,
+		"retry_backoff_ms": 500
+	}
+	```
+
+	Les valeurs sont en millisecondes pour `interval` et `retry_backoff_ms`. Si le fichier est absent, des valeurs par défaut sont utilisées.
+
+- Persistance anti-doublon: `~/.config/readrss/seen_store.json` (créé automatiquement). Ce fichier mémorise les articles déjà vus (par GUID/URL) pour éviter les doublons.
+
 ## Qualité & maintenance
 
 - Formater : `cargo fmt`
 - Linter : `cargo clippy --all-targets`
-- Tests (à venir) : `cargo test`
+- Tests : `cargo test`
+- Intégration continue: un workflow GitHub Actions exécute `fmt`, `clippy`, `test` et `build`.
+
+## Packaging (aperçu)
+
+- Linux: binaire `rss-gui` (zip/tar.gz). Un AppImage pourra être ajouté ultérieurement.
+- Windows: binaire `rss-gui.exe` (zip). MSI en option (à planifier).
+- macOS: app bundle via `cargo-bundle` (à planifier).
+
+Voir `docs/packaging.md` pour les pistes détaillées.
 
 ## Collaboration Git
 

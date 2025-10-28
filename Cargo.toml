@@ -17,7 +17,7 @@ description = "Rust RSS reader with background polling service and GUI frontend"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "fs"] }
 rss = "2"
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1"
@@ -26,3 +26,5 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 eframe = { version = "0.27", default-features = false, features = ["wgpu", "wayland", "x11"] }
 egui = "0.27"
 webbrowser = "0.8"
+dirs = "5"
+>>>>>>> 0bdc301 (feat(core): robust poller (timeouts, retries, backoff) + persistent dedup store; events to GUI; tests & CI; docs; use isolated target-local (ignored)\n\n- Add PollConfig with request timeout, retries/backoff\n- SeenStore JSON persistence and dedup via FeedEntry::identity()\n- Event::NewArticles, spawn_poller filters seen and emits\n- poll_once helper + httpmock-based tests\n- GUI consumes events; config/seen loaded from ~/.config/readrss\n- CI workflow (fmt, clippy -D warnings, test, build)\n- VS Code tasks and docs (QA & packaging)\n- .cargo target-dir set to target-local and ignored)
