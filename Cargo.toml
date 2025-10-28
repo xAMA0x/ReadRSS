@@ -25,3 +25,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 eframe = { version = "0.27", default-features = false, features = ["wgpu", "wayland", "x11"] }
 egui = "0.27"
+webbrowser = "0.8"

@@ -19,6 +19,8 @@ pub struct FeedEntry {
     pub url: String,
     pub published_at: Option<DateTime<Utc>>,
     pub guid: Option<String>,
+    pub author: Option<String>,
+    pub category: Option<String>,
 }
 
 impl FeedEntry {
@@ -28,6 +30,22 @@ impl FeedEntry {
             .and_then(|value| DateTime::parse_from_rfc2822(value).ok())
             .map(|dt| dt.with_timezone(&Utc));
 
+        // Extract author from Dublin Core extension or author field
+        let author = item
+            .dublin_core_ext()
+            .and_then(|dc| dc.creators().first().map(|s| s.to_string()))
+            .or_else(|| item.author().map(|s| s.to_string()));
+
+        // Extract category from categories or Dublin Core subject
+        let category = item
+            .categories()
+            .first()
+            .map(|cat| cat.name().to_string())
+            .or_else(|| {
+                item.dublin_core_ext()
+                    .and_then(|dc| dc.subjects().first().map(|s| s.to_string()))
+            });
+
         Self {
             feed_id: feed_id.to_owned(),
             title: item.title().unwrap_or_default().to_owned(),
@@ -35,6 +53,8 @@ impl FeedEntry {
             url: item.link().unwrap_or_default().to_owned(),
             published_at,
             guid: item.guid().map(|guid| guid.value().to_owned()),
+            author,
+            category,
         }
     }
 }
