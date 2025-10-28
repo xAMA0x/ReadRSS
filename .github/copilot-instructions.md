@@ -8,11 +8,11 @@
 
 - [x] Install Required Extensions — no extensions requested for this workspace.
 
-- [ ] Compile the Project
+- [x] Compile the Project
 
 - [x] Create and Run Task
 
-- [ ] Launch the Project
+- [x] Launch the Project
 
 - [x] Ensure Documentation is Complete
 
