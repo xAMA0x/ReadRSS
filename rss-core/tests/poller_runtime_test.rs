@@ -2,7 +2,7 @@ use httpmock::prelude::*;
 use reqwest::Client;
 use tokio::sync::mpsc;
 
-use rss_core::{shared_feed_list, spawn_poller, Event, FeedDescriptor, PollConfig, SeenStore};
+use rss_core::{shared_feed_list, Event, FeedDescriptor, PollConfig, SeenStore};
 
 #[tokio::test]
 async fn spawn_poller_emits_event() {
