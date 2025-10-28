@@ -20,3 +20,4 @@ url = { workspace = true }
 html2text = { workspace = true }
 futures-util = { workspace = true }
 bytes = { workspace = true }
+wry = { workspace = true }

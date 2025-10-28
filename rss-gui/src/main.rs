@@ -1,4 +1,5 @@
 mod app;
+mod webview;
 
 use std::sync::Arc;
 
@@ -54,7 +55,12 @@ fn main() -> eframe::Result<()> {
 
     eframe::run_native(
         "ReadRSS",
-        NativeOptions::default(),
+        NativeOptions {
+            viewport: egui::ViewportBuilder::default()
+                .with_inner_size([800.0, 800.0])
+                .with_min_inner_size([600.0, 500.0]),
+            ..Default::default()
+        },
         Box::new(move |cc| {
             install_emoji_friendly_fonts(&cc.egui_ctx);
             Box::new(RssApp::new(init))

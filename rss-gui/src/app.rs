@@ -10,6 +10,7 @@ use rss_core::{
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use url::Url;
+use crate::webview::open_webview;
 
 // Recommandations de flux (catégories prédéfinies)
 struct RecFeed {
@@ -1008,7 +1009,7 @@ impl RssApp {
 
                         // Actions
                         ui.horizontal(|ui| {
-                            if ui.button("Ouvrir l'article dans le navigateur").clicked() {
+                            if ui.button("Ouvrir dans le navigateur").clicked() {
                                 if let Err(e) = webbrowser::open(&article.url) {
                                     eprintln!("Erreur lors de l'ouverture du lien: {}", e);
                                 }
@@ -1018,7 +1019,7 @@ impl RssApp {
                                 ui.output_mut(|o| o.copied_text = article.url.clone());
                             }
 
-                            if ui.button("Afficher l'article ici").on_hover_text("Récupère le contenu de l'URL et l'affiche en dessous").clicked() {
+                            if ui.button("Afficher l'article ici (texte)").on_hover_text("Récupère le contenu de l'URL et l'affiche en dessous").clicked() {
                                 self.inline_loading = true;
                                 self.inline_error = None;
                                 self.inline_preview = None;
@@ -1064,6 +1065,12 @@ impl RssApp {
                                         self.inline_error = Some(err);
                                         self.inline_loading = false;
                                     }
+                                }
+                            }
+
+                            if ui.button("Aperçu intégré (WebView)").on_hover_text("Ouvre un aperçu intégré avec HTML+CSS/JS").clicked() {
+                                if let Err(e) = open_webview(&article.url, &format!("{} — Aperçu", article.title)) {
+                                    eprintln!("Impossible d'ouvrir la WebView: {}", e);
                                 }
                             }
                         });
