@@ -20,6 +20,8 @@ pub struct DataApi {
     read_inner: Arc<RwLock<ReadData>>,
     feeds_path: PathBuf,
     read_path: PathBuf,
+    articles_inner: Arc<RwLock<HashMap<String, Vec<FeedEntry>>>>, // feed_id -> entries cache
+    articles_path: PathBuf,
 }
 
 impl DataApi {
@@ -28,6 +30,7 @@ impl DataApi {
         let dir = dir.as_ref();
         let feeds_path = dir.join("feeds.json");
         let read_path = dir.join("read_store.json");
+        let articles_path = dir.join("articles_store.json");
 
         // Ensure directory exists
         if let Err(e) = tokio::fs::create_dir_all(dir).await {
@@ -50,11 +53,20 @@ impl DataApi {
             Err(_) => ReadData::default(),
         };
 
+        // Load articles_store.json (cache des derniers articles)
+        let articles_inner = match tokio::fs::read(&articles_path).await {
+            Ok(bytes) => serde_json::from_slice::<HashMap<String, Vec<FeedEntry>>>(&bytes)
+                .unwrap_or_default(),
+            Err(_) => HashMap::new(),
+        };
+
         Self {
             feeds,
             read_inner: Arc::new(RwLock::new(read_inner)),
             feeds_path,
             read_path,
+            articles_inner: Arc::new(RwLock::new(articles_inner)),
+            articles_path,
         }
     }
 
@@ -85,6 +97,21 @@ impl DataApi {
                 }
             }
             Err(e) => warn!(error = %e, "failed to serialize read map"),
+        }
+    }
+
+    async fn persist_articles(&self) {
+        let inner = self.articles_inner.read().await;
+        match serde_json::to_vec_pretty(&*inner) {
+            Ok(bytes) => {
+                if let Some(parent) = self.articles_path.parent() {
+                    let _ = tokio::fs::create_dir_all(parent).await;
+                }
+                if let Err(e) = tokio::fs::write(&self.articles_path, bytes).await {
+                    warn!(error = %e, path = %self.articles_path.display(), "failed to persist articles_store.json");
+                }
+            }
+            Err(e) => warn!(error = %e, "failed to serialize articles map"),
         }
     }
 
@@ -127,5 +154,44 @@ impl DataApi {
         } else {
             debug!("entry already marked as read");
         }
+    }
+
+    /// Upsert et persiste un lot d'articles pour un feed (dedup + tri + truncate)
+    pub async fn upsert_articles(&self, feed_id: &str, entries: Vec<FeedEntry>) {
+        const MAX_PER_FEED: usize = 300;
+        let mut inner = self.articles_inner.write().await;
+        let slot = inner.entry(feed_id.to_string()).or_default();
+        // Index existants par identity
+        let mut existing: HashSet<String> = slot.iter().map(|e| e.identity()).collect();
+        for e in entries {
+            let id = e.identity();
+            if existing.insert(id) {
+                slot.push(e);
+            }
+        }
+        // Tri par date décroissante
+        slot.sort_by(|a, b| b.published_at.cmp(&a.published_at));
+        if slot.len() > MAX_PER_FEED {
+            slot.truncate(MAX_PER_FEED);
+        }
+        drop(inner);
+        self.persist_articles().await;
+    }
+
+    /// Liste les articles persistés pour un feed donné
+    pub async fn list_articles(&self, feed_id: &str) -> Vec<FeedEntry> {
+        let inner = self.articles_inner.read().await;
+        inner.get(feed_id).cloned().unwrap_or_default()
+    }
+
+    /// Liste tous les articles persistés, toutes sources confondues
+    pub async fn list_all_articles(&self) -> Vec<FeedEntry> {
+        let inner = self.articles_inner.read().await;
+        let mut all = Vec::new();
+        for v in inner.values() {
+            all.extend(v.clone());
+        }
+        all.sort_by(|a, b| b.published_at.cmp(&a.published_at));
+        all
     }
 }
