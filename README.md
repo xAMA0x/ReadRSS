@@ -32,7 +32,7 @@ Le service de poller démarre automatiquement avec l'interface. Ajoutez un flux 
 
 1. Initialiser Git (déjà fait si `git init`) : `git init`
 2. Ajouter les fichiers : `git add .`
-3. Premier commit : `flatpak-spawn --host git commit -m "Initial workspace scaffold"`
+3. Premier commit : `git commit -m "Initial workspace scaffold"`
 4. Créer le dépôt distant sur GitHub (navigateur ou `gh repo create`)
 5. Ajouter le remote : `git remote add origin https://github.com/<organisation>/ReadRSS.git`
 6. Pousser la branche principale : `git push -u origin main`
