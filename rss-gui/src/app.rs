@@ -65,6 +65,27 @@ fn recommended_categories() -> &'static [RecCategory] {
     CATS
 }
 
+fn color_for_feed(id: &str) -> Color32 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    id.hash(&mut hasher);
+    let h = hasher.finish();
+    const PALETTE: [Color32; 10] = [
+        Color32::from_rgb(0, 122, 204),   // bleu
+        Color32::from_rgb(76, 175, 80),   // vert
+        Color32::from_rgb(244, 67, 54),   // rouge
+        Color32::from_rgb(255, 152, 0),   // orange
+        Color32::from_rgb(156, 39, 176),  // violet
+        Color32::from_rgb(0, 188, 212),   // cyan
+        Color32::from_rgb(233, 30, 99),   // rose
+        Color32::from_rgb(121, 85, 72),   // brun
+        Color32::from_rgb(63, 81, 181),   // indigo
+        Color32::from_rgb(158, 158, 158), // gris
+    ];
+    let idx = (h as usize) % PALETTE.len();
+    PALETTE[idx]
+}
+
 pub struct AppInit {
     pub runtime: Arc<Runtime>,
     pub feeds: SharedFeedList,
@@ -80,6 +101,8 @@ pub struct AppInit {
 enum AppView {
     ArticleList,
     ArticleDetail(FeedEntry),
+    DiscoverHome,
+    DiscoverCategory(String),
 }
 
 pub struct RssApp {
@@ -149,6 +172,75 @@ impl RssApp {
         }
 
         app
+    }
+
+    fn draw_discover_home(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.heading(egui::RichText::new("🧭 Discover").size(18.0));
+        });
+        ui.separator();
+
+        let cats = recommended_categories();
+        let mut i = 0usize;
+        while i < cats.len() {
+            ui.horizontal(|ui| {
+                for j in 0..2 {
+                    if let Some(cat) = cats.get(i + j) {
+                        ui.group(|g| {
+                            g.vertical(|ui| {
+                                let btn = ui.add_sized(
+                                    egui::vec2(200.0, 90.0),
+                                    egui::Button::new(egui::RichText::new(cat.name).strong().size(16.0)),
+                                );
+                                if btn.clicked() {
+                                    self.current_view = AppView::DiscoverCategory(cat.name.to_string());
+                                }
+                                ui.label(egui::RichText::new(format!("Top {} flux", cat.feeds.len().min(5))).weak().size(12.0));
+                            });
+                        });
+                    } else {
+                        ui.allocate_space(egui::vec2(200.0, 90.0));
+                    }
+                }
+            });
+            ui.add_space(10.0);
+            i += 2;
+        }
+    }
+
+    fn draw_discover_category(&mut self, ui: &mut egui::Ui, category_name: String) {
+        ui.horizontal(|ui| {
+            if ui.button("← Retour").clicked() {
+                self.current_view = AppView::DiscoverHome;
+                return;
+            }
+            ui.separator();
+            ui.heading(egui::RichText::new(format!("{} — Top 5", category_name)).size(18.0));
+        });
+        ui.separator();
+
+        let cat = recommended_categories().iter().find(|c| c.name == category_name);
+        if let Some(cat) = cat {
+            let feeds = &cat.feeds[..cat.feeds.len().min(5)];
+            for rf in feeds {
+                ui.group(|g| {
+                    g.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(rf.title).strong().size(16.0));
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if ui.small_button("Suivre").clicked() {
+                                    self.follow_recommended(rf.title, rf.url);
+                                }
+                            });
+                        });
+                        ui.label(egui::RichText::new(rf.desc).weak().size(13.0)).on_hover_text(rf.url);
+                    });
+                });
+                ui.add_space(6.0);
+            }
+        } else {
+            ui.label(egui::RichText::new("Catégorie introuvable").weak());
+        }
     }
 
     fn setup_dark_theme(&self, ctx: &egui::Context) {
@@ -406,56 +498,16 @@ impl RssApp {
 
                     ui.add_space(10.0);
 
-                    // Section Discover (entre Ajouter et Rechercher)
+                    // Discover: bouton simple qui ouvre la vue principale Discover
                     ui.group(|group| {
                         group.vertical(|ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    egui::RichText::new("🧭 Discover").strong().size(15.0),
-                                );
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        if ui
-                                            .small_button(if self.show_discover { "Masquer" } else { "Afficher" })
-                                            .on_hover_text("Afficher des catégories de flux recommandés")
-                                            .clicked()
-                                        {
-                                            self.show_discover = !self.show_discover;
-                                        }
-                                    },
-                                );
-                            });
-
-                            if self.show_discover {
-                                ui.separator();
-
-                                if let Some((ok, msg)) = &self.discover_feedback {
-                                    let color = if *ok { Color32::from_rgb(67, 160, 71) } else { Color32::from_rgb(229,57,53) };
-                                    ui.label(egui::RichText::new(msg.clone()).color(color).size(13.0));
-                                }
-
-                                for cat in recommended_categories() {
-                                    egui::CollapsingHeader::new(cat.name)
-                                        .default_open(false)
-                                        .show(ui, |ui| {
-                                            for rf in cat.feeds {
-                                                ui.group(|g| {
-                                                    g.vertical(|ui| {
-                                                        ui.horizontal_wrapped(|ui| {
-                                                            ui.label(egui::RichText::new(rf.title).strong().size(14.0));
-                                                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                                                if ui.small_button("Suivre").clicked() {
-                                                                    self.follow_recommended(rf.title, rf.url);
-                                                                }
-                                                            });
-                                                        });
-                                                        ui.label(egui::RichText::new(rf.desc).weak().size(12.0)).on_hover_text(rf.url);
-                                                    });
-                                                });
-                                            }
-                                        });
-                                }
+                            if ui.button("🧭 Discover").on_hover_text("Parcourir des catégories de flux recommandés").clicked() {
+                                self.current_view = AppView::DiscoverHome;
+                                self.selected_feed = None;
+                            }
+                            if let Some((ok, msg)) = &self.discover_feedback {
+                                let color = if *ok { Color32::from_rgb(67, 160, 71) } else { Color32::from_rgb(229,57,53) };
+                                ui.label(egui::RichText::new(msg.clone()).color(color).size(13.0));
                             }
                         });
                     });
@@ -509,6 +561,7 @@ impl RssApp {
                                         // Afficher tous les flux (agrégé)
                                         if ui.small_button("Tous").clicked() {
                                             self.selected_feed = None;
+                                            self.current_view = AppView::ArticleList;
                                             // Recharger l'agrégat depuis la persistance
                                             let all = self.runtime.block_on(self.data_api.list_all_articles());
                                             self.articles = all;
@@ -537,6 +590,7 @@ impl RssApp {
 
                                             if response.clicked() {
                                                 self.selected_feed = Some(feed.id.clone());
+                                                self.current_view = AppView::ArticleList;
                                                 // Charger d'abord les articles persistés pour ce flux
                                                 let persisted = self.runtime.block_on(
                                                     self.data_api.list_articles(&feed.id),
@@ -671,6 +725,8 @@ impl RssApp {
         egui::CentralPanel::default().show(ctx, |ui| match &self.current_view {
             AppView::ArticleList => self.draw_article_list(ui),
             AppView::ArticleDetail(article) => self.draw_article_detail(ui, article.clone()),
+            AppView::DiscoverHome => self.draw_discover_home(ui),
+            AppView::DiscoverCategory(name) => self.draw_discover_category(ui, name.clone()),
         });
     }
 
@@ -704,6 +760,15 @@ impl RssApp {
             .show(ui, |ui| {
                 let articles: Vec<FeedEntry> =
                     self.filtered_articles().into_iter().cloned().collect();
+
+                let aggregated_view = self.selected_feed.is_none();
+                use std::collections::HashMap;
+                let mut feed_title_map: HashMap<String, String> = HashMap::new();
+                if aggregated_view {
+                    for f in self.feeds_snapshot() {
+                        feed_title_map.insert(f.id.clone(), f.title.clone());
+                    }
+                }
 
                 if articles.is_empty() {
                     ui.vertical_centered(|ui| {
@@ -826,6 +891,19 @@ impl RssApp {
                                     );
                                 }
                             });
+
+                            // Source du flux (agrégé uniquement)
+                            if aggregated_view {
+                                let feed_name = feed_title_map
+                                    .get(&article.feed_id)
+                                    .cloned()
+                                    .unwrap_or_else(|| "Flux inconnu".to_string());
+                                let color = color_for_feed(&article.feed_id);
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    let pill = egui::RichText::new(feed_name).color(color).size(12.0);
+                                    ui.label(pill);
+                                });
+                            }
                         });
                     });
 
