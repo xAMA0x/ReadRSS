@@ -56,7 +56,7 @@ pub fn spawn_poller(
                     for feed in feeds_snapshot {
                         match fetch_feed(&client, &feed).await {
                             Ok(entries) if !entries.is_empty() => {
-                                if let Err(_) = update_tx.send(entries).await {
+                                if update_tx.send(entries).await.is_err() {
                                     warn!("update receiver dropped");
                                 }
                             }

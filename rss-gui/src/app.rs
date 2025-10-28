@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use eframe::egui;
-use rss_core::{add_feed, list_feeds, remove_feed, FeedDescriptor, FeedEntry, PollerHandle, SharedFeedList};
+use rss_core::{
+    add_feed, list_feeds, remove_feed, FeedDescriptor, FeedEntry, PollerHandle, SharedFeedList,
+};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 
@@ -46,8 +48,7 @@ impl RssApp {
     }
 
     fn feeds_snapshot(&self) -> Vec<FeedDescriptor> {
-        self.runtime
-            .block_on(list_feeds(&self.feeds))
+        self.runtime.block_on(list_feeds(&self.feeds))
     }
 
     fn add_feed_from_input(&mut self) {
