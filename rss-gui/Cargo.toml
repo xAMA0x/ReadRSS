@@ -1,0 +1,16 @@
+[package]
+name = "rss-gui"
+version = "0.1.0"
+edition = "2021"
+description = "Graphical frontend for the RSS reader"
+license = "MIT"
+
+[dependencies]
+egui = { workspace = true }
+rss-core = { path = "../rss-core" }
+tokio = { workspace = true }
+eframe = { workspace = true }
+egui = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+reqwest = { workspace = true }
