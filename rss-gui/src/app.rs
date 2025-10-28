@@ -501,7 +501,10 @@ impl RssApp {
                     // Discover: bouton simple qui ouvre la vue principale Discover
                     ui.group(|group| {
                         group.vertical(|ui| {
-                            if ui.button("🧭 Discover").on_hover_text("Parcourir des catégories de flux recommandés").clicked() {
+                            // Bouton plein largeur sans emoji pour compatibilité
+                            let w = ui.available_width();
+                            let btn = egui::Button::new(egui::RichText::new("Discover").strong());
+                            if ui.add_sized(egui::vec2(w, 28.0), btn).clicked() {
                                 self.current_view = AppView::DiscoverHome;
                                 self.selected_feed = None;
                             }
@@ -789,8 +792,9 @@ impl RssApp {
                             continue;
                         }
                     }
-                    ui.group(|group| {
-                        group.vertical(|ui| {
+                    egui::Frame::group(ui.style()).show(ui, |ui| {
+                        ui.set_min_height(120.0); // Hauteur minimale uniforme pour la première carte et les suivantes
+                        ui.vertical(|ui| {
                             // État de lecture
                             let is_read = self.runtime.block_on(self.data_api.is_read(&article));
 
@@ -858,8 +862,8 @@ impl RssApp {
                             } else {
                                 String::new()
                             };
-                            let preview_trunc = if preview_text.len() > 600 {
-                                format!("{}...", &preview_text[..597])
+                            let preview_trunc = if preview_text.len() > 300 {
+                                format!("{}...", &preview_text[..297])
                             } else {
                                 preview_text
                             };
