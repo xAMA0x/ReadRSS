@@ -3,6 +3,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
+use atom_syndication as atom;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct FeedDescriptor {
@@ -69,6 +70,41 @@ impl FeedEntry {
         }
         let ts = self.published_at.map(|d| d.timestamp()).unwrap_or_default();
         format!("title:{}@{}", self.title, ts)
+    }
+
+    pub fn from_atom_entry(feed_id: &str, entry: &atom::Entry) -> Self {
+        let published_at = entry
+            .published()
+            .cloned()
+            .or_else(|| Some(entry.updated().clone()))
+            .map(|dt| dt.with_timezone(&Utc));
+
+        let author = entry
+            .authors()
+            .first()
+            .map(|p| p.name.clone());
+
+        let category = entry
+            .categories()
+            .first()
+            .map(|c| c.term.clone());
+
+        let url = entry
+            .links()
+            .first()
+            .map(|l| l.href.clone())
+            .unwrap_or_default();
+
+        Self {
+            feed_id: feed_id.to_owned(),
+            title: entry.title().to_string(),
+            summary: entry.summary().map(|s| s.value.clone()),
+            url,
+            published_at,
+            guid: Some(entry.id().to_owned()),
+            author,
+            category,
+        }
     }
 }
 

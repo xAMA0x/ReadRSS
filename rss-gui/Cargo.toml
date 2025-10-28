@@ -16,3 +16,4 @@ reqwest = { workspace = true }
 chrono = { workspace = true }
 webbrowser = { workspace = true }
 dirs = { workspace = true }
+url = { workspace = true }

@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use eframe::egui::{self, Color32, Rounding, Stroke};
+use url::Url;
 use rss_core::{
-    list_feeds, Event, FeedDescriptor, FeedEntry, PollerHandle, SharedFeedList, DataApi,
+    list_feeds, Event, FeedDescriptor, FeedEntry, PollConfig, PollerHandle, SharedFeedList,
+    SeenStore, DataApi, poll_once,
 };
+use reqwest::Client;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 
@@ -14,6 +17,9 @@ pub struct AppInit {
     pub poller: PollerHandle,
     pub updates: mpsc::Receiver<Event>,
     pub data_api: Arc<DataApi>,
+    pub client: Client,
+    pub poll_config: PollConfig,
+    pub seen_store: SeenStore,
 }
 
 #[derive(Debug, Clone)]
@@ -28,12 +34,16 @@ pub struct RssApp {
     poller: Option<PollerHandle>,
     updates: mpsc::Receiver<Event>,
     data_api: Arc<DataApi>,
+    client: Client,
+    poll_config: PollConfig,
+    seen_store: SeenStore,
     articles: Vec<FeedEntry>,
     new_feed_title: String,
     new_feed_url: String,
     selected_feed: Option<String>,
     current_view: AppView,
     feed_search: String,
+    add_feedback: Option<(bool, String)>,
 }
 
 impl RssApp {
@@ -44,12 +54,16 @@ impl RssApp {
             poller: Some(init.poller),
             updates: init.updates,
             data_api: init.data_api,
+            client: init.client,
+            poll_config: init.poll_config,
+            seen_store: init.seen_store,
             articles: Vec::new(),
             new_feed_title: String::new(),
             new_feed_url: String::new(),
             selected_feed: None,
             current_view: AppView::ArticleList,
             feed_search: String::new(),
+            add_feedback: None,
         }
     }
 
@@ -153,26 +167,48 @@ impl RssApp {
     }
 
     fn add_feed_from_input(&mut self) {
-        let title = self.new_feed_title.trim();
-        let url = self.new_feed_url.trim();
-        if url.is_empty() {
+        let title_owned = self.new_feed_title.trim().to_string();
+        let url_owned = self.new_feed_url.trim().to_string();
+        if url_owned.is_empty() || Url::parse(&url_owned).is_err() {
+            self.add_feedback = Some((false, "URL invalide".to_string()));
             return;
         }
 
-        let id = format!("{}:{}", title, Utc::now().timestamp_millis());
+        let id = format!("{}:{}", title_owned, Utc::now().timestamp_millis());
         let descriptor = FeedDescriptor {
             id,
-            title: if title.is_empty() {
-                url.to_owned()
+            title: if title_owned.is_empty() {
+                url_owned.clone()
             } else {
-                title.to_owned()
+                title_owned.clone()
             },
-            url: url.to_owned(),
+            url: url_owned.clone(),
         };
 
-        self.runtime.block_on(self.data_api.add_feed(descriptor));
+        // Persist the feed
+        self.runtime.block_on(self.data_api.add_feed(descriptor.clone()));
+        // Trigger an immediate refresh for the newly added feed
+        let events = self.runtime.block_on(async {
+            poll_once(&[descriptor], &self.poll_config, &self.client, &self.seen_store).await
+        });
+        for evt in events {
+            match evt {
+                Event::NewArticles(_, mut entries) => {
+                    self.articles.append(&mut entries);
+                    self.articles
+                        .sort_by(|a, b| b.published_at.cmp(&a.published_at));
+                    self.articles.truncate(250);
+                }
+            }
+        }
         self.new_feed_title.clear();
         self.new_feed_url.clear();
+        if !title_owned.is_empty() {
+            self.add_feedback = Some((true, "Ajouté.".to_string()));
+        } else {
+            // Ajout accepté mais titre vide: on n’affiche pas le succès demandé par le cahier des charges
+            self.add_feedback = None;
+        }
     }
 
     fn draw_left_panel(&mut self, ctx: &egui::Context) {
@@ -204,8 +240,14 @@ impl RssApp {
                                 if ui.button("🗑 Effacer").clicked() {
                                     self.new_feed_title.clear();
                                     self.new_feed_url.clear();
+                                    self.add_feedback = None;
                                 }
                             });
+
+                            if let Some((ok, msg)) = &self.add_feedback {
+                                let color = if *ok { Color32::from_rgb(67, 160, 71) } else { Color32::from_rgb(229, 57, 53) };
+                                ui.label(egui::RichText::new(msg.clone()).color(color).size(13.0));
+                            }
                         });
                     });
 

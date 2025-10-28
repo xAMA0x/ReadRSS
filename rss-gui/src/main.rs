@@ -18,15 +18,17 @@ fn main() -> eframe::Result<()> {
     let feed_store = shared_feed_list(Vec::new());
     let (update_tx, update_rx) = mpsc::channel(64);
     let client = Client::new();
+    let client_for_app = client.clone();
     let poll_config = load_poll_config();
     let seen_store = load_seen_store(&runtime);
+    let seen_for_app = seen_store.clone();
     let data_api = load_data_api(&runtime, feed_store.clone());
 
     let poller = {
         let guard = runtime.enter();
         let handle = spawn_poller(
             feed_store.clone(),
-            poll_config,
+            poll_config.clone(),
             client,
             update_tx,
             seen_store,
@@ -41,6 +43,9 @@ fn main() -> eframe::Result<()> {
         poller,
         updates: update_rx,
         data_api,
+        client: client_for_app,
+        poll_config,
+        seen_store: seen_for_app,
     };
 
     eframe::run_native(
