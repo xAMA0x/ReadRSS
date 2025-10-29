@@ -108,10 +108,10 @@ async fn fetch_feed(
     #[cfg(not(test))]
     if url.scheme() != "https" {
         // Autoriser HTTP uniquement en loopback pour tests/développement local
-        let host_ok = match url.host_str() {
-            Some("localhost") | Some("127.0.0.1") | Some("::1") => true,
-            _ => false,
-        };
+        let host_ok = matches!(
+            url.host_str(),
+            Some("localhost") | Some("127.0.0.1") | Some("::1")
+        );
         if !host_ok {
             return Err(PollError::UnsupportedScheme);
         }
