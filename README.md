@@ -1,99 +1,114 @@
 # ReadRSS
 
-Lecteur RSS modulaire en Rust comprenant un service d'actualisation en arrière-plan et une interface graphique moderne basée sur `egui`.
+Un lecteur RSS simple et moderne en Rust, avec rafraîchissement en arrière‑plan et une interface graphique fluide (egui/wgpu).
 
-## Architecture du workspace
+## Ce que vous pouvez faire
 
-- `rss-core` : bibliothèque gérant les modèles de flux, la récupération réseau et le service de poller asynchrone.
-- `rss-gui` : application graphique (`.exe`) qui consomme `rss-core`, affiche les flux suivis et reçoit les nouveaux articles via un canal interne.
+- Ajouter des flux RSS (HTTPS uniquement) et parcourir leurs articles
+- Voir la liste agrégée de tous vos flux ou filtrer par flux
+- Marquer les articles comme lus / non lus, « tout marquer comme lu »
+- Ouvrir les articles dans votre navigateur par défaut (pas de WebView intégré)
+- Découvrir des flux recommandés (catégories)
+- Personnaliser l’interface (thème, largeur du panneau, aperçus, pagination) via la page Paramètres
 
-## Pré-requis
+## Installation rapide
 
-- Rust 1.78 ou supérieur (`rustup` recommandé)
-- Cible système compatible `wgpu` (Windows, Linux ou macOS récent)
-- Accès réseau sortant pour récupérer les flux RSS
- - Linux: bibliothèques système usuelles pour `winit`/`wgpu` (X11 et/ou Wayland). Sur Ubuntu/Debian, si nécessaire: `libx11-dev`, `libwayland-dev`, `libxkbcommon-dev`.
+Prérequis:
+- Linux, macOS ou Windows récent
+- Rust stable (via rustup)
 
-## Démarrage rapide
-
-1. Installer la toolchain : `rustup default stable`
-2. Vérifier l'installation : `cargo --version`
-3. Vérifier la compilation : `cargo check`
-4. Lancer l'interface graphique : `cargo run -p rss-gui`
-
-Le service de poller démarre automatiquement avec l'interface. Ajoutez un flux via le panneau latéral en saisissant son titre et son URL.
-
-### Configuration
-
-- Fichiers de configuration et données (par utilisateur): `~/.config/readrss/`
-
-	- `config.json` (optionnel)
-	- `feeds.json`, `read_store.json`, `articles_store.json`, `seen_store.json` (créés automatiquement)
-
-	Remarques:
-	- Ces fichiers résident dans le dossier de configuration utilisateur (hors dépôt Git).
-	- En cas de fallback exceptionnel (si `dirs::config_dir()` échoue), l’application pourra créer `./readrss/` à la racine du projet; ce répertoire est ignoré par Git via `.gitignore`.
-
-	Exemple:
-
-	```json
-	{
-		"interval": 120000,
-		"request_timeout": 15000,
-		"max_retries": 3,
-		"retry_backoff_ms": 500
-	}
-	```
-
-	Les valeurs sont en millisecondes pour `interval` et `retry_backoff_ms`. Si le fichier est absent, des valeurs par défaut sont utilisées.
-
-- Sécurité réseau
-  - Les flux doivent être servis en HTTPS (obligatoire). Les URLs en HTTP sont refusées (hors hôtes loopback utilisés pour les tests).
-
-### Affichage des emojis (Linux)
-
-Pour que les emojis s’affichent correctement, installez une police couvrant les emojis (par ex. Noto Color Emoji). Sur Debian/Ubuntu:
+Commandes:
 
 ```bash
-sudo apt-get update
-sudo apt-get install fonts-noto-color-emoji
+# Installer/activer la toolchain stable
+rustup default stable
+
+# Vérifier que tout est prêt
+cargo --version
+
+# Lancer l’application
+cargo run -p rss-gui
 ```
 
-L’application tente de charger automatiquement plusieurs polices systèmes (Noto Emoji / Noto Color Emoji / Noto Sans Symbols / DejaVu Sans). Si vous voyez encore des carrés, vérifiez que les polices existent dans `/usr/share/fonts/`.
+Astuce: au premier lancement, un dossier de configuration utilisateur est créé automatiquement.
 
-### Lecture des articles
+## Utilisation en 30 secondes
 
-L’application n’intègre plus de WebView. Pour lire un article dans sa mise en page complète, utilisez le bouton « Ouvrir dans le navigateur »: le lien s’ouvrira dans votre navigateur par défaut. Cette approche évite les dépendances système lourdes et maximise la compatibilité.
+1) Dans le panneau de gauche, saisissez un titre (optionnel) et l’URL d’un flux RSS en HTTPS, puis « Ajouter ».
 
-- Persistance anti-doublon: `~/.config/readrss/seen_store.json` (créé automatiquement). Ce fichier mémorise les articles déjà vus (par GUID/URL) pour éviter les doublons.
+2) Cliquez sur un flux pour voir ses articles, ou sur « Tous » pour la vue agrégée.
 
-## Qualité & maintenance
+3) Cliquez sur un titre pour voir le détail; utilisez « Ouvrir » pour lire l’article dans votre navigateur.
 
-- Formater : `cargo fmt`
-- Linter : `cargo clippy --all-targets`
-- Tests : `cargo test`
-- Intégration continue: un workflow GitHub Actions exécute `fmt`, `clippy`, `test` et `build`.
+4) La page « ⚙️ Paramètres » vous permet d’ajuster le thème, l’affichage des aperçus et le nombre d’articles listés.
 
-## Packaging (aperçu)
+## Emplacement des données
 
-- Linux: binaire `rss-gui` (zip/tar.gz). Un AppImage pourra être ajouté ultérieurement.
-- Windows: binaire `rss-gui.exe` (zip). MSI en option (à planifier).
-- macOS: app bundle via `cargo-bundle` (à planifier).
+Les fichiers sont stockés par utilisateur dans:
 
-Voir `docs/packaging.md` pour les pistes détaillées.
+- Linux: `~/.config/readrss/`
+- macOS: `~/Library/Application Support/readrss/`
+- Windows: `%APPDATA%/readrss/`
 
-## Collaboration Git
+Contenu typique (créé à la demande):
+- `config.json` — paramètres de l’app (thème, interface, flux)
+- `feeds.json`, `articles_store.json`, `read_store.json`, `seen_store.json` — vos données
 
-1. Initialiser Git (déjà fait si `git init`) : `git init`
-2. Ajouter les fichiers : `git add .`
-3. Premier commit : `git commit -m "Initial workspace scaffold"`
-4. Créer le dépôt distant sur GitHub (navigateur ou `gh repo create`)
-5. Ajouter le remote : `git remote add origin https://github.com/<organisation>/ReadRSS.git`
-6. Pousser la branche principale : `git push -u origin main`
+Exemple minimal de `config.json` (toutes les clés sont optionnelles, des valeurs par défaut existent):
 
-Pour partager aux membres du groupe :
+```json
+{
+	"theme": {
+		"background_color": [30, 30, 30],
+		"panel_color": [37, 37, 38],
+		"accent_color": [0, 122, 204],
+		"text_color": [204, 204, 204],
+		"secondary_text_color": [150, 150, 150],
+		"border_color": [60, 60, 60]
+	},
+	"feeds": {
+		"update_interval_minutes": 30,
+		"max_articles_per_feed": 100,
+		"request_timeout_seconds": 10,
+		"retry_attempts": 3
+	},
+	"ui": {
+		"font_size": 14.0,
+		"left_panel_width": 300.0,
+		"show_article_preview": true,
+		"articles_per_page": 20
+	}
+}
+```
 
-- Envoyer l’URL du dépôt GitHub.
-- Chaque membre peut cloner : `git clone https://github.com/<organisation>/ReadRSS.git`
-- Utiliser des branches par fonctionnalité : `git checkout -b feature/nom`
-- Ouvrir une Pull Request pour les revues de code.
+La page « Paramètres » modifie et sauvegarde automatiquement ce fichier.
+
+## Remarques plateforme (Linux)
+
+- Emojis: installez une police dédiée si besoin (ex: Noto Color Emoji)
+
+```bash
+sudo apt update && sudo apt install -y fonts-noto-color-emoji
+```
+
+- Graphique: `wgpu` sélectionne automatiquement Vulkan/GL. Si votre environnement est minimal, installez les bibliothèques X11/Wayland usuelles.
+
+## Structure du projet
+
+- `rss-core`: bibliothèque cœur (polling, parsing, stockage, API)
+- `rss-gui`: application graphique (egui/eframe) qui consomme `rss-core`
+
+## FAQ rapide
+
+- Pourquoi HTTPS obligatoire pour ajouter un flux ?
+	> Pour la sécurité. Les URLs HTTP sont refusées par l’UI.
+
+- Où sont les aperçus des articles ?
+	> Ils sont affichés en texte brut (converti depuis HTML). Désactivez‑les dans « Paramètres » si vous préférez une liste plus compacte.
+
+- Comment lire les articles avec leur mise en page ?
+	> Cliquez sur « Ouvrir »: l’URL s’ouvre dans votre navigateur par défaut.
+
+## Licence
+
+MIT — voir le champ `license` dans `Cargo.toml`.

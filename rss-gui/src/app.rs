@@ -4,8 +4,8 @@ use chrono::Utc;
 use eframe::egui::{self, Color32, Rounding, Stroke};
 use reqwest::Client;
 use rss_core::{
-    list_feeds, poll_once, DataApi, Event, FeedDescriptor, FeedEntry, PollConfig, PollerHandle,
-    SeenStore, SharedFeedList,
+    list_feeds, poll_once, AppConfig, DataApi, Event, FeedDescriptor, FeedEntry, PollConfig,
+    PollerHandle, SeenStore, SharedFeedList,
 };
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -103,6 +103,7 @@ enum AppView {
     ArticleDetail(Box<FeedEntry>),
     DiscoverHome,
     DiscoverCategory(String),
+    Settings,
 }
 
 pub struct RssApp {
@@ -114,6 +115,7 @@ pub struct RssApp {
     client: Client,
     poll_config: PollConfig,
     seen_store: SeenStore,
+    config: AppConfig,
     articles: Vec<FeedEntry>,
     new_feed_title: String,
     new_feed_url: String,
@@ -138,6 +140,7 @@ impl RssApp {
             client: init.client,
             poll_config: init.poll_config,
             seen_store: init.seen_store,
+            config: AppConfig::load(),
             articles: Vec::new(),
             new_feed_title: String::new(),
             new_feed_url: String::new(),
@@ -166,7 +169,8 @@ impl RssApp {
             }
             app.articles
                 .sort_by(|a, b| b.published_at.cmp(&a.published_at));
-            app.articles.truncate(250);
+            app.articles
+                .truncate(app.config.ui.articles_per_page.max(1));
         }
 
         app
@@ -244,13 +248,33 @@ impl RssApp {
     fn setup_dark_theme(&self, ctx: &egui::Context) {
         let mut style = (*ctx.style()).clone();
 
-        // Couleurs principales VS Code Dark
-        let bg_color = Color32::from_rgb(30, 30, 30); // Arrière-plan principal
-        let panel_color = Color32::from_rgb(37, 37, 38); // Panneaux latéraux
-        let border_color = Color32::from_rgb(62, 62, 66); // Bordures
-        let text_color = Color32::from_rgb(204, 204, 204); // Texte principal
-        let accent_color = Color32::from_rgb(0, 122, 204); // Bleu accent VS Code
-        let hover_color = Color32::from_rgb(46, 46, 46); // Survol
+        // Couleurs depuis la configuration
+        let bg_color = Color32::from_rgb(
+            self.config.theme.background_color[0],
+            self.config.theme.background_color[1],
+            self.config.theme.background_color[2],
+        );
+        let panel_color = Color32::from_rgb(
+            self.config.theme.panel_color[0],
+            self.config.theme.panel_color[1],
+            self.config.theme.panel_color[2],
+        );
+        let border_color = Color32::from_rgb(
+            self.config.theme.border_color[0],
+            self.config.theme.border_color[1],
+            self.config.theme.border_color[2],
+        );
+        let text_color = Color32::from_rgb(
+            self.config.theme.text_color[0],
+            self.config.theme.text_color[1],
+            self.config.theme.text_color[2],
+        );
+        let accent_color = Color32::from_rgb(
+            self.config.theme.accent_color[0],
+            self.config.theme.accent_color[1],
+            self.config.theme.accent_color[2],
+        );
+        let hover_color = panel_color;
 
         // Configuration des couleurs
         style.visuals.dark_mode = true;
@@ -311,7 +335,8 @@ impl RssApp {
                     self.articles.append(&mut entries);
                     self.articles
                         .sort_by(|a, b| b.published_at.cmp(&a.published_at));
-                    self.articles.truncate(250);
+                    self.articles
+                        .truncate(self.config.ui.articles_per_page.max(1));
                 }
             }
         }
@@ -379,7 +404,8 @@ impl RssApp {
         }
         self.articles
             .sort_by(|a, b| b.published_at.cmp(&a.published_at));
-        self.articles.truncate(250);
+        self.articles
+            .truncate(self.config.ui.articles_per_page.max(1));
         self.discover_feedback = Some((true, "Ajouté.".to_string()));
     }
 
@@ -461,8 +487,8 @@ impl RssApp {
 
     fn draw_left_panel(&mut self, ctx: &egui::Context) {
         egui::SidePanel::left("feeds_panel")
-            .min_width(280.0)
-            .max_width(350.0)
+            .min_width(self.config.ui.left_panel_width.clamp(200.0, 500.0))
+            .max_width(500.0)
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                     // Section d'ajout de flux
@@ -522,6 +548,20 @@ impl RssApp {
                         });
                     });
 
+                    ui.add_space(6.0);
+
+                    // Accès Paramètres
+                    ui.group(|group| {
+                        group.vertical(|ui| {
+                            let w = ui.available_width();
+                            let btn = egui::Button::new(egui::RichText::new("⚙️ Paramètres").strong());
+                            if ui.add_sized(egui::vec2(w, 28.0), btn).clicked() {
+                                self.current_view = AppView::Settings;
+                                self.selected_feed = None;
+                            }
+                        });
+                    });
+
                     ui.add_space(10.0);
 
                     // Section de recherche des flux
@@ -563,7 +603,7 @@ impl RssApp {
                                                     self.articles.append(&mut entries);
                                                 }
                                                 self.articles.sort_by(|a, b| b.published_at.cmp(&a.published_at));
-                                                self.articles.truncate(250);
+                                                self.articles.truncate(self.config.ui.articles_per_page.max(1));
                                             }
                                         }
 
@@ -575,7 +615,7 @@ impl RssApp {
                                             let all = self.runtime.block_on(self.data_api.list_all_articles());
                                             self.articles = all;
                                             self.articles.sort_by(|a, b| b.published_at.cmp(&a.published_at));
-                                            self.articles.truncate(250);
+                                            self.articles.truncate(self.config.ui.articles_per_page.max(1));
                                         }
                                     },
                                 );
@@ -611,7 +651,7 @@ impl RssApp {
                                                     self.articles.sort_by(|a, b| {
                                                         b.published_at.cmp(&a.published_at)
                                                     });
-                                                    self.articles.truncate(250);
+                                                    self.articles.truncate(self.config.ui.articles_per_page.max(1));
                                                 } else {
                                                     // Si aucun cache, tenter un fetch immédiat
                                                     let fd = feed.clone();
@@ -637,7 +677,7 @@ impl RssApp {
                                                     self.articles.sort_by(|a, b| {
                                                         b.published_at.cmp(&a.published_at)
                                                     });
-                                                    self.articles.truncate(250);
+                                                    self.articles.truncate(self.config.ui.articles_per_page.max(1));
                                                 }
                                             }
                                             response.on_hover_text(&feed.url);
@@ -699,7 +739,7 @@ impl RssApp {
                                                         self.articles.sort_by(|a, b| {
                                                             b.published_at.cmp(&a.published_at)
                                                         });
-                                                        self.articles.truncate(250);
+                                                        self.articles.truncate(self.config.ui.articles_per_page.max(1));
                                                     }
                                                 },
                                             );
@@ -726,6 +766,7 @@ impl RssApp {
             AppView::ArticleDetail(article) => self.draw_article_detail(ui, (**article).clone()),
             AppView::DiscoverHome => self.draw_discover_home(ui),
             AppView::DiscoverCategory(name) => self.draw_discover_category(ui, name.clone()),
+            AppView::Settings => self.draw_settings(ui),
         });
     }
 
@@ -855,30 +896,32 @@ impl RssApp {
 
                             ui.add_space(3.0);
 
-                            // Aperçu de contenu (plus détaillé)
-                            let preview_text = if let Some(html) = &article.content_html {
-                                html2text::from_read(html.as_bytes(), 100)
-                            } else if let Some(summary) = &article.summary {
-                                html2text::from_read(summary.as_bytes(), 100)
-                            } else {
-                                String::new()
-                            };
-                            // Tronquer sans couper au milieu d'un caractère Unicode
-                            let preview_trunc = {
-                                let max_chars = 300usize;
-                                if preview_text.chars().count() > max_chars {
-                                    let mut s: String = preview_text
-                                        .chars()
-                                        .take(max_chars.saturating_sub(3))
-                                        .collect();
-                                    s.push_str("...");
-                                    s
+                            if self.config.ui.show_article_preview {
+                                // Aperçu de contenu (plus détaillé)
+                                let preview_text = if let Some(html) = &article.content_html {
+                                    html2text::from_read(html.as_bytes(), 100)
+                                } else if let Some(summary) = &article.summary {
+                                    html2text::from_read(summary.as_bytes(), 100)
                                 } else {
-                                    preview_text
+                                    String::new()
+                                };
+                                // Tronquer sans couper au milieu d'un caractère Unicode
+                                let preview_trunc = {
+                                    let max_chars = 300usize;
+                                    if preview_text.chars().count() > max_chars {
+                                        let mut s: String = preview_text
+                                            .chars()
+                                            .take(max_chars.saturating_sub(3))
+                                            .collect();
+                                        s.push_str("...");
+                                        s
+                                    } else {
+                                        preview_text
+                                    }
+                                };
+                                if !preview_trunc.is_empty() {
+                                    ui.label(egui::RichText::new(preview_trunc).weak().size(13.0));
                                 }
-                            };
-                            if !preview_trunc.is_empty() {
-                                ui.label(egui::RichText::new(preview_trunc).weak().size(13.0));
                             }
 
                             ui.add_space(5.0);
@@ -1027,141 +1070,173 @@ impl RssApp {
                 });
             });
     }
-<<<<<<< HEAD
-=======
-
+    
     fn draw_settings(&mut self, ui: &mut egui::Ui) {
         ui.heading(egui::RichText::new("⚙️ Paramètres").size(18.0));
         ui.separator();
-        
+
         egui::ScrollArea::vertical().show(ui, |ui| {
             // Section Thème
             ui.group(|ui| {
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new("🎨 Thème").strong().size(16.0));
                     ui.separator();
-                    
+
                     ui.horizontal(|ui| {
                         ui.label("Couleur d'arrière-plan:");
-                        let mut panel_color = [
+                        let mut bg = [
+                            self.config.theme.background_color[0] as f32 / 255.0,
+                            self.config.theme.background_color[1] as f32 / 255.0,
+                            self.config.theme.background_color[2] as f32 / 255.0,
+                        ];
+                        if ui.color_edit_button_rgb(&mut bg).changed() {
+                            self.config.theme.background_color = [
+                                (bg[0] * 255.0) as u8,
+                                (bg[1] * 255.0) as u8,
+                                (bg[2] * 255.0) as u8,
+                            ];
+                            let _ = self.config.save();
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Couleur du panneau:");
+                        let mut panel = [
                             self.config.theme.panel_color[0] as f32 / 255.0,
                             self.config.theme.panel_color[1] as f32 / 255.0,
                             self.config.theme.panel_color[2] as f32 / 255.0,
                         ];
-                        if ui.color_edit_button_rgb(&mut panel_color).changed() {
+                        if ui.color_edit_button_rgb(&mut panel).changed() {
                             self.config.theme.panel_color = [
-                                (panel_color[0] * 255.0) as u8,
-                                (panel_color[1] * 255.0) as u8,
-                                (panel_color[2] * 255.0) as u8,
+                                (panel[0] * 255.0) as u8,
+                                (panel[1] * 255.0) as u8,
+                                (panel[2] * 255.0) as u8,
                             ];
                             let _ = self.config.save();
                         }
                     });
-                    
+
                     ui.horizontal(|ui| {
-                        ui.label("Couleur contours:");
-                        let mut accent_color = [
+                        ui.label("Couleur d'accent:");
+                        let mut accent = [
                             self.config.theme.accent_color[0] as f32 / 255.0,
                             self.config.theme.accent_color[1] as f32 / 255.0,
                             self.config.theme.accent_color[2] as f32 / 255.0,
                         ];
-                        if ui.color_edit_button_rgb(&mut accent_color).changed() {
+                        if ui.color_edit_button_rgb(&mut accent).changed() {
                             self.config.theme.accent_color = [
-                                (accent_color[0] * 255.0) as u8,
-                                (accent_color[1] * 255.0) as u8,
-                                (accent_color[2] * 255.0) as u8,
+                                (accent[0] * 255.0) as u8,
+                                (accent[1] * 255.0) as u8,
+                                (accent[2] * 255.0) as u8,
                             ];
                             let _ = self.config.save();
                         }
                     });
-                    
+
                     if ui.button("🔄 Réinitialiser aux valeurs par défaut").clicked() {
                         self.config.theme = rss_core::ThemeConfig::default();
+                        let _ = self.config.save();
                     }
                 });
             });
+
             ui.add_space(10.0);
-            
+
             // Section Interface
             ui.group(|ui| {
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new("🖥️ Interface").strong().size(16.0));
                     ui.separator();
-                    
+
                     ui.horizontal(|ui| {
                         ui.label("Taille de police:");
-                        if ui.add(egui::Slider::new(&mut self.config.ui.font_size, 10.0..=24.0).suffix(" px")).changed() {
+                        if ui
+                            .add(egui::Slider::new(&mut self.config.ui.font_size, 10.0..=24.0).suffix(" px"))
+                            .changed()
+                        {
                             let _ = self.config.save();
                         }
                     });
-                    
+
                     ui.horizontal(|ui| {
                         ui.label("Largeur du panneau de gauche:");
-                        if ui.add(egui::Slider::new(&mut self.config.ui.left_panel_width, 200.0..=500.0).suffix(" px")).changed() {
+                        if ui
+                            .add(egui::Slider::new(&mut self.config.ui.left_panel_width, 200.0..=500.0).suffix(" px"))
+                            .changed()
+                        {
                             let _ = self.config.save();
                         }
                     });
-                    
+
                     ui.horizontal(|ui| {
                         ui.label("Articles par page:");
-                        if ui.add(egui::Slider::new(&mut self.config.ui.articles_per_page, 10..=100)).changed() {
+                        if ui
+                            .add(egui::Slider::new(&mut self.config.ui.articles_per_page, 10..=500))
+                            .changed()
+                        {
                             let _ = self.config.save();
                         }
                     });
-                    
-                    if ui.checkbox(&mut self.config.ui.show_article_preview, "Afficher les aperçus d'articles").changed() {
+
+                    if ui
+                        .checkbox(&mut self.config.ui.show_article_preview, "Afficher les aperçus d'articles")
+                        .changed()
+                    {
                         let _ = self.config.save();
                     }
                 });
             });
+
             ui.add_space(10.0);
-            
+
             // Section Flux RSS
             ui.group(|ui| {
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new("📡 Flux RSS").strong().size(16.0));
                     ui.separator();
-                    
+
                     ui.horizontal(|ui| {
                         ui.label("Intervalle de mise à jour:");
                         ui.add(egui::Slider::new(&mut self.config.feeds.update_interval_minutes, 1..=120).suffix(" min"));
                     });
-                    
+
                     ui.horizontal(|ui| {
                         ui.label("Articles max par flux:");
                         ui.add(egui::Slider::new(&mut self.config.feeds.max_articles_per_feed, 10..=500));
                     });
-                    
+
                     ui.horizontal(|ui| {
                         ui.label("Timeout des requêtes:");
                         ui.add(egui::Slider::new(&mut self.config.feeds.request_timeout_seconds, 5..=60).suffix(" sec"));
                     });
-                    
+
                     ui.horizontal(|ui| {
                         ui.label("Tentatives de réessai:");
                         ui.add(egui::Slider::new(&mut self.config.feeds.retry_attempts, 1..=10));
                     });
                 });
             });
+
             ui.add_space(20.0);
-            
+
             // Bouton utile
             ui.horizontal(|ui| {
                 if ui.button("🗂 Ouvrir dossier config").clicked() {
                     if let Ok(config_path) = rss_core::AppConfig::config_file_path() {
                         if let Some(parent) = config_path.parent() {
-                            let _ = std::process::Command::new("xdg-open")
-                                .arg(parent)
-                                .spawn();
+                            let _ = std::process::Command::new("xdg-open").arg(parent).spawn();
                         }
                     }
                 }
-                
-                ui.label(egui::RichText::new("💡 Les modifications sont sauvegardées automatiquement").size(12.0).weak());
+
+                ui.label(
+                    egui::RichText::new("💡 Les modifications sont sauvegardées automatiquement")
+                        .size(12.0)
+                        .weak(),
+                );
             });
         });
     }
->>>>>>> dd29e94 (refactor: Suppression boutons inutiles dans paramètres)
 }
 
 impl Drop for RssApp {
