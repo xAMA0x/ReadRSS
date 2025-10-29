@@ -1,135 +1,153 @@
-# ReadRSS — Guide technique complet (≈ 30 minutes)
+# ReadRSS — Guide technique détaillé et pédagogique (≈ 30 minutes)
 
-Ce document sert de support d’oral (1 section ≈ 1 minute) et de référence technique exhaustive pour ReadRSS. Chaque section est concise, progressive et illustrée de code du projet.
+Ce document est un guide COMPLÈTEMENT autonome pour expliquer ReadRSS à un public mixte (débutants en Rust compris) et servir de script d’oral. Chaque section correspond à ~1 minute. Vous trouverez pour chaque sujet: un objectif clair, les dépendances, le fonctionnement interne, un petit lexique, des schémas mentaux et, quand utile, de courts extraits de code tirés du projet.
 
----
-
-## 01 — Vision et objectifs
-
-ReadRSS est un lecteur RSS/Atom local, rapide et simple:
-- Polling en arrière‑plan avec limites, timeouts, retries.
-- UI fluide (egui/wgpu), sans WebView: ouverture des liens dans le navigateur système.
-- Données et configuration persistées côté utilisateur, par OS.
-- Sécurité: HTTPS obligatoire en production (loopback autorisé en dev/tests).
-
-Contrats d’expérience:
-- Démarre vite, ne bloque jamais l’UI sur les E/S.
-- Lire hors‑ligne ce qui a déjà été récupéré.
-- Paramètres sauvegardés immédiatement.
+Astuce d’utilisation: lisez linéairement si vous découvrez le projet; pour une présentation, traitez 1 section = 1 diapo/minute.
 
 ---
 
-## 02 — Architecture d’ensemble
+## 01 — Vision, promesse utilisateur et contraintes
+
+Objectif: un lecteur RSS/Atom local, rapide, fiable, sans complexité inutile.
+
+- Promesse: “j’ajoute des flux, ça se met à jour tout seul, je lis, je classe, j’ouvre dans le navigateur”.
+- Contraintes de sûreté: HTTPS obligatoire (sauf loopback en dev/tests), limite 10 MiB par flux, timeouts et retries.
+- Contraintes d’UX: démarrage rapide, UI réactive (aucune E/S ou réseau ne bloque le rendu), paramètres persistés immédiatement.
+
+Lexique:
+- RSS/Atom: formats XML listant des items d’actualité.
+- Poller: tâche périodique qui récupère les flux.
+- Déduplication: éviter de ré‑annoncer un article déjà vu.
+
+---
+
+## 02 — Carte d’architecture (vue macro)
 
 Workspace Cargo:
-- `rss-core` (bibliothèque): modèles, parsing, polling, persistance, erreurs, seen store.
-- `rss-gui` (application): eframe/egui, navigation, thèmes, intégration `rss-core`.
+- `rss-core` (lib): modèle, parsing, polling, persistance, erreurs, “seen store”.
+- `rss-gui` (app): eframe/egui (wgpu), navigation, thèmes, logique UI.
 
-Flux de données (simplifié):
+Flux logique (de gauche à droite):
 
 ```
-HTTP (reqwest) → parse (rss/atom) → FeedEntry → SeenStore (dédup) → DataApi (persist)
-                                               ↓
-                                           UI (egui)
+Réseau (reqwest) → Parsing (rss/atom_syndication) → FeedEntry → SeenStore (dédup)
+                                                     ↘ DataApi (persist JSON) → UI (egui)
 ```
+
+Dépendances clefs: `tokio` (async), `reqwest` (HTTP, rustls), `rss` et `atom_syndication` (parsing), `serde` (JSON), `egui/eframe` (UI), `tracing` (logs).
 
 ---
 
-## 03 — Modules principaux (core)
+## 03 — Modules (core) et responsabilités
 
-- `config`: AppConfig, gestion du fichier `config.json` (chargement/écriture). 
-- `poller`: tâche périodique, timeouts, retries, 10 MiB max, HTTPS only.
-- `feed`: modèles `FeedDescriptor`, `FeedEntry` et conversions RSS/Atom.
-- `data`: API de données (feeds, read-state, cache d’articles) avec persistance atomique .tmp.
+- `config`: charge/sauvegarde `AppConfig` (thème, UI, params de polling).
+- `poller`: cadence, timeouts, retries, émet `Event::NewArticles`.
+- `feed`: structures `FeedDescriptor`, `FeedEntry` et conversions RSS/Atom.
+- `data`: API persistante (feeds, “lus”, cache d’articles) écriture atomique `.tmp`.
 - `storage`: `SeenStore` (déduplication persistée).
-- `error`: `PollError` centralise les erreurs.
+- `error`: `PollError` (réseau, parsing, schéma, taille, tâche…).
 
-Exposition publique (`rss-core/src/lib.rs`):
-
-```rust
-pub mod config; pub mod data; pub mod error; pub mod feed; pub mod poller; pub mod storage;
-pub use config::{AppConfig, FeedConfig, ThemeConfig, UiConfig};
-pub use data::DataApi;
-pub use error::PollError;
-pub use feed::{FeedDescriptor, FeedEntry, SharedFeedList, add_feed, list_feeds, remove_feed, shared_feed_list};
-pub use poller::{poll_once, spawn_poller, Event, PollConfig, PollerHandle};
-pub use storage::SeenStore;
-```
+Code d’export (`rss-core/src/lib.rs`) pour tout réutiliser côté app.
 
 ---
 
-## 04 — Configuration: AppConfig
+## 04 — Lexique minimal Rust et async
 
-Rôle: centraliser thème, UI et paramètres de polling côté utilisateur.
+- Crate: paquet Rust (lib ou binaire). Workspace: ensemble de crates.
+- Trait `Send + Sync`: partagabilité entre threads.
+- `Arc<T>`: pointeur partagé thread‑safe; `RwLock<T>`: verrou lecture/écriture.
+- `async/await`: écriture asynchrone; `tokio::spawn`: lance une tâche concurrente.
+- `mpsc`/`broadcast`: canaux asynchrones (point‑à‑point / un‑à‑N).
 
+But: comprendre la mécanique sans plonger dans tous les détails bas niveau.
+
+---
+
+## 05 — Configuration: AppConfig (où, quand, comment)
+
+Chemin: `rss-core/src/config.rs`
+
+Rôle: centraliser les préférences utilisateur (couleurs, largeur panneau, pagination) et les paramètres réseau (timeouts, intervalle, retries). Fichier stocké par OS dans le dossier `readrss` de l’utilisateur.
+
+Contrat:
+- Entrée: JSON partiel accepté (valeurs par défaut appliquées si clés manquantes).
+- Sortie: objet `AppConfig` utilisable partout (UI + runtime).
+- Erreurs: en cas d’échec de lecture, on crée un défaut et on le sauvegarde.
+
+Extrait:
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig { pub theme: ThemeConfig, pub feeds: FeedConfig, pub ui: UiConfig }
-
-impl AppConfig {
-  pub fn config_file_path() -> Result<PathBuf, Box<dyn std::error::Error>> { /* … */ }
-  pub fn load() -> Self { /* défaut + save si absent */ }
-  pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> { /* … */ }
-}
+impl AppConfig { pub fn load() -> Self { /* défaut si lecture échoue + auto-save */ } }
 ```
 
-Design:
-- Toujours chargeable (fallback défaut + auto‑save en cas d’erreur).
-- Neutralité UI: pas de dépendance forte à egui, seulement des couleurs `[u8;3]`.
+Dépend: `dirs` (chemin config), `serde`/`serde_json`.
+Utilisé par: `rss-gui` (thème et sliders), construction de `PollConfig`.
 
 ---
 
-## 05 — Modèle de données: FeedDescriptor et FeedEntry
+## 06 — Données: FeedDescriptor et FeedEntry (schémas)
 
+Chemin: `rss-core/src/feed.rs`
+
+Schémas:
+- `FeedDescriptor { id, title, url }` décrit un flux suivi.
+- `FeedEntry` représente un article normalisé (titre, url, auteur, date, guid…).
+
+Points clés:
+- `identity()` fabrique une clé stable (GUID > URL > titre@timestamp) — sert à la déduplication.
+- Conversions depuis RSS et Atom remplissent au mieux les champs.
+
+Extrait:
 ```rust
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct FeedDescriptor { pub id: String, pub title: String, pub url: String }
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct FeedEntry {
-  pub feed_id: String, pub title: String, pub summary: Option<String>, pub url: String,
-  pub published_at: Option<DateTime<Utc>>, pub guid: Option<String>, /* … */
-}
-
 impl FeedEntry {
   pub fn identity(&self) -> String { /* GUID > URL > titre@ts */ }
 }
 ```
 
-Points clés:
-- `identity()` assure une déduplication robuste.
-- Conversions depuis `rss::Item` et `atom::Entry` enrichissent les champs (auteur, catégorie…).
+---
+
+## 07 — Persistance des données: DataApi (contrats)
+
+Chemin: `rss-core/src/data.rs`
+
+Responsabilités:
+- Feeds: ajouter/supprimer/lister avec persistance (`feeds.json`).
+- Read‑state: marquer “lu” (`read_store.json`).
+- Articles: cache par feed (`articles_store.json`), déduplication + tri + truncate.
+
+Contrats fonctionnels:
+- `add_feed(feed)` — Entrée: `FeedDescriptor`; Effet: persiste et met à jour la liste.
+- `mark_read(entry)` — Entrée: `FeedEntry`; Effet: persiste la marque “lu”.
+- `upsert_articles(feed_id, entries)` — Entrée: liste d’articles; Effet: fusion, tri, limite, persistance atomique.
+
+Note: écriture atomique via fichier `.tmp` puis `rename()`.
 
 ---
 
-## 06 — Parsing RSS puis fallback Atom
+## 08 — Déduplication persistée: SeenStore
 
-`fetch_feed` lit en streaming, limite à 10 MiB, parse RSS sinon tente Atom:
+Chemin: `rss-core/src/storage.rs`
 
-```rust
-let mut cursor_rss = std::io::Cursor::new(bytes.to_vec());
-match rss::Channel::read_from(&mut cursor_rss) {
-  Ok(channel) => { /* map vers FeedEntry */ }
-  Err(rss_err) => {
-    let mut cursor = std::io::Cursor::new(bytes.to_vec());
-    match atom_syndication::Feed::read_from(&mut cursor) {
-      Ok(atom_feed) => { /* map vers FeedEntry */ }
-      Err(_e2) => Err(PollError::from(rss_err)),
-    }
-  }
-}
-```
+Rôle: empêcher l’UI de recevoir à nouveau un article déjà diffusé. Différent de “lu” (qui relève de l’utilisateur).
+
+Contrat:
+- `is_new_and_mark(entry) -> bool`: retourne true s’il n’a jamais été vu (et le marque immédiatemment), sinon false.
+
+Structure de données: `HashMap<feed_id, HashSet<identity>>` sérialisé en JSON.
 
 ---
 
-## 07 — Politique réseau et sécurité
+## 09 — Réseau et sécurité: fetch_feed (politique)
 
-- Production: HTTPS obligatoire, sauf loopback (tests/dev).
-- Timeout configurable, redirections limitées (côté client GUI).
-- Limite de taille 10 MiB pour éviter les abus et OOM.
+Chemin: `rss-core/src/poller.rs`
 
-Snippet (enforcement):
+Garanties:
+- HTTPS requis hors tests/dev (exception loopback).
+- Taille max 10 MiB; streaming du body pour limiter la mémoire.
+- Timeout configurable par `PollConfig`.
 
+Extrait de contrôle de schéma:
 ```rust
 #[cfg(not(test))]
 if url.scheme() != "https" { /* autorise localhost/127.0.0.1/::1 sinon UnsupportedScheme */ }
@@ -137,251 +155,244 @@ if url.scheme() != "https" { /* autorise localhost/127.0.0.1/::1 sinon Unsupport
 
 ---
 
-## 08 — Poller: cadence, retries, backoff
+## 10 — Parsing: d’abord RSS, puis fallback Atom
 
+Stratégie: essayer RSS; si parsing échoue, tenter Atom; si les deux échouent, retourner l’erreur RSS (plus informative).
+
+Extrait simplifié:
 ```rust
-#[derive(Debug, Clone)]
-pub struct PollConfig { interval: Duration, request_timeout: Duration, max_retries: usize, retry_backoff_ms: u64 }
-
-pub fn spawn_poller(/* … */) -> PollerHandle { /* tokio::spawn + interval + select cancel */ }
-
-async fn fetch_feed_with_retries(/*…*/) -> Result<Vec<FeedEntry>, PollError> {
-  let mut attempt = 0; /* backoff exponentiel */
+match rss::Channel::read_from(&mut cursor_rss) {
+  Ok(channel) => map_items(channel.items()),
+  Err(rss_err) => match atom_syndication::Feed::read_from(&mut cursor_atom) {
+    Ok(feed) => map_entries(feed.entries()),
+    Err(_) => Err(PollError::from(rss_err))
+  }
 }
 ```
 
-Points d’attention:
-- `MissedTickBehavior::Skip` évite l’effet “rattrapage” en cas de blocage.
-- Emission d’évènements `Event::NewArticles(feed_id, entries)` via `mpsc`.
-
 ---
 
-## 09 — Déduplication: SeenStore
+## 11 — PollConfig et backoff (retry exponentiel)
 
-Objectif: ne pousser vers l’UI que des articles jamais vus.
+Paramètres:
+- `interval`: cadence du polling.
+- `request_timeout`: timeout HTTP par requête.
+- `max_retries`: nb max de tentatives.
+- `retry_backoff_ms`: base du backoff exponentiel.
 
+Extrait:
 ```rust
-pub async fn is_new_and_mark(&self, entry: &FeedEntry) -> bool {
-  let key = entry.identity(); /* persist JSON si nouveau */
-}
+let backoff = cfg.retry_backoff_ms * (1u64 << (attempt - 1));
+tokio::time::sleep(Duration::from_millis(backoff)).await;
 ```
 
-Design:
-- Structure HashMap<feed_id, HashSet<identity>> sérialisée en JSON.
-- Mode mémoire ou persistant (chemin injecté à l’initialisation).
+---
+
+## 12 — Tâche de polling: spawn_poller (concurrence)
+
+Mécanique:
+- `tokio::spawn` crée une tâche qui réveille un `interval`. 
+- À chaque tick: snapshot des feeds, fetch en séquence (simple et sûr), émission d’évènements.
+- Arrêt: canal `broadcast` (envoi `()`), `join.await` dans `stop()`.
+
+Contrats d’erreur: toute erreur de réseau/parsing est loggée, pas fatale.
 
 ---
 
-## 10 — API de données: DataApi
+## 13 — Évènements: Event::NewArticles
 
-Fonctions: gestion des feeds, marques “lus”, cache d’articles par feed.
+Chemin: `rss-core/src/poller.rs`
 
+Rôle: isoler l’UI des détails réseau. L’UI ne “scrape” jamais directement: elle consomme des évènements.
+
+Format: `NewArticles(feed_id, Vec<FeedEntry>)`
+
+Dépendances: `mpsc::Sender<Event>` passé à `spawn_poller`.
+
+---
+
+## 14 — Point d’entrée GUI (main.rs)
+
+Chemin: `rss-gui/src/main.rs`
+
+Étapes:
+1. Initialiser tracing (logs filtrables via `RUST_LOG`).
+2. Créer un runtime Tokio et les services (DataApi, SeenStore, client HTTP).
+3. Dériver `PollConfig` à partir d’`AppConfig` (cohérence UI/runtime).
+4. Lancer le poller et démarrer la fenêtre eframe/egui.
+
+Extrait:
 ```rust
-pub async fn add_feed(&self, feed: FeedDescriptor) { /* persist_feeds */ }
-pub async fn mark_read(&self, entry: &FeedEntry) { /* persist_read */ }
-pub async fn upsert_articles(&self, feed_id: &str, entries: Vec<FeedEntry>) { /* dédup + tri + truncate + persist */ }
+let poller = spawn_poller(feeds.clone(), poll_config.clone(), client, update_tx, seen_store);
+eframe::run_native("ReadRSS", NativeOptions { /* … */ }, Box::new(move |_| Box::new(RssApp::new(init))))
 ```
 
-Persistance atomique:
-- écriture dans `*.json.tmp` puis `rename()` vers le fichier final.
+---
+
+## 15 — Architecture UI: vues et navigation
+
+Chemin: `rss-gui/src/app.rs`
+
+Vues principales:
+- Liste d’articles, Détail d’article, Discover (catégories), Paramètres.
+
+Navigation:
+- Panneau gauche: ajout/recherche, accès Discover/Paramètres, sélection de flux.
+- Panneau central: route selon `current_view`.
 
 ---
 
-## 11 — Entrée GUI: initialisation (main.rs)
+## 16 — Thème et styles (egui)
 
+Règles:
+- Couleurs et arrondis issus d’`AppConfig`.
+- Objectif lisibilité (contraste, hover, active). 
+
+Extrait (simplifié):
 ```rust
-let runtime = Arc::new(tokio::runtime::Runtime::new()?);
-let (update_tx, update_rx) = mpsc::channel(64);
-let client = reqwest::ClientBuilder::new().redirect(redirect::Policy::limited(5)).build()?;
-let poll_config = load_poll_config();
-let poller = spawn_poller(feeds.clone(), poll_config.clone(), client.clone(), update_tx, seen);
-eframe::run_native("ReadRSS", NativeOptions { /* viewport */ }, /* app */)
-```
-
-Points clés:
-- Runtime Tokio propriété de l’appli, partagé aux services.
-- Client HTTP partagé GUI/poller (clone, threadsafe).
-
----
-
-## 12 — Cartographie UI (AppView)
-
-Vues: `ArticleList`, `ArticleDetail`, `DiscoverHome`, `DiscoverCategory`, `Settings`.
-
-Principe: `draw_left_panel` pilote la navigation; `draw_main_content` route vers la vue courante.
-
----
-
-## 13 — Thème et style egui
-
-Application du thème depuis `AppConfig`:
-
-```rust
-style.visuals.dark_mode = true; style.visuals.panel_fill = panel_color; /* … */
-style.visuals.widgets.active.bg_fill = accent_color; /* … */
+style.visuals.dark_mode = true;
+style.visuals.widgets.active.bg_fill = accent_color;
 ctx.set_style(style);
 ```
 
-Objectif: look cohérent, lisible, non flashy, contrôlé par l’utilisateur.
-
 ---
 
-## 14 — Panneau gauche: ajout/recherche/gestion
+## 17 — Ajout d’un flux: validation et feedback
 
-Fonctions clés:
-- Ajout d’un flux (HTTPS obligatoire, feedback en UI).
-- Recherche locale par titre.
-- Découverte (catégories recommandées) et Paramètres.
+UX: titre optionnel, URL obligatoire et en HTTPS (sinon message d’erreur). Après ajout: déclenchement d’un `poll_once` immédiat pour “voir un résultat tout de suite”.
 
-Validation URL:
-
+Extrait:
 ```rust
-if parsed.scheme() != "https" { /* feedback UI: refuser HTTP */ }
+if parsed.scheme() != "https" { self.add_feedback = Some((false, "Seules les URLs HTTPS…".into())); }
 ```
 
 ---
 
-## 15 — Agrégateur d’articles
+## 18 — Discover: recommandations prêtes à suivre
 
-Tri décroissant par date, pagination via `articles_per_page`, badge Non‑lu/Lu.
-Ouverture d’un article:
+Principe: listes statiques de flux classées par catégorie (Tech, Dev, Science, Actu FR). Bouton “Suivre” → ajout + rafraîchissement instantané.
 
-```rust
-if ui.small_button("🔗 Ouvrir").clicked() { let _ = webbrowser::open(&article.url); }
-```
+But: onboarding immédiat sans chercher des URLs.
 
 ---
 
-## 16 — Lecture d’un article
+## 19 — Liste d’articles: agrégation et filtrage
 
-Rendu texte simplifié via `html2text` (HTML → texte brut). Options: ouvrir dans le navigateur, copier le lien.
-
----
-
-## 17 — Paramètres (sauvegarde immédiate)
-
-Sections: Thème, Interface, Flux.
-
-```rust
-if ui.color_edit_button_rgb(&mut bg).changed() { self.config.theme.background_color = /* … */; let _ = self.config.save(); }
-```
+Fonctions:
+- Vue “Tous” (agrégée) ou par flux.
+- Tri par date décroissante, pagination via `articles_per_page`.
+- “Non lus” uniquement (en s’appuyant sur `DataApi.is_read`).
 
 ---
 
-## 18 — Discover (recommandations)
+## 20 — Détail d’un article et actions
 
-Catégories statiques (tech, dev, science, actu FR), ajout 1‑clic, rafraîchissement immédiat du flux ajouté.
+Rendu: `html2text` transforme le HTML en texte brut (lisible, sûr). 
+Actions: Ouvrir dans le navigateur (mise en page native), Copier le lien.
 
----
-
-## 19 — Concurrency et canaux
-
-- `mpsc` pour pousser `Event::NewArticles` vers l’UI.
-- `broadcast` pour l’arrêt propre du poller.
-- `RwLock` pour la liste des feeds.
+Sécurité: l’UI ne rend pas du HTML riche (pas de WebView), donc pas d’exécution de scripts.
 
 ---
 
-## 20 — Limites, timeouts et robustesse
+## 21 — Paramètres: thème, interface et flux
 
-- 10 MiB max par flux.
-- Timeout requête configurable.
-- Backoff exponentiel (base 500 ms).
-- Skip des ticks manqués.
+Sauvegarde immédiate: chaque slider/checkbox écrit le JSON. 
+Impact: thème appliqué à chaud; paramètres des feeds pris en compte à la relance (ou conversion vers `PollConfig` dès l’entrée).
 
 ---
 
-## 21 — Erreurs et journalisation
+## 22 — Concurrence et canaux (modèle mental)
 
-`PollError` centralise les échecs (réseau, parsing, taille, schéma, JoinError…).
-`tracing` + `RUST_LOG` pour le debug.
+- Poller: tâche async autonome qui pousse des évènements.
+- UI: boucle egui qui consomme les évènements et persiste via `DataApi`.
+- Partage: `Arc<RwLock<Vec<FeedDescriptor>>>` pour la liste des flux.
 
+Avantage: découplage réseau/UI, robustesse, simplicité de debug.
+
+---
+
+## 23 — Robustesse: limites et timeouts
+
+Pourquoi 10 MiB? Éviter les flux anormalement gros (DoS mémoire/temps). 
+Pourquoi des retries? L’Internet est faillible; on retente avec backoff exponentiel.
+Pourquoi `MissedTickBehavior::Skip`? On ne rattrape pas un retard si l’app a été gelée (préserve la réactivité).
+
+---
+
+## 24 — Gestion des erreurs et logs
+
+`PollError` catégorise les échecs (réseau, parsing, scheme, taille, task join). 
+`tracing` permet `RUST_LOG=info`/`debug` pour diagnostiquer.
+
+Extrait:
 ```rust
 #[derive(Debug, Error)]
-pub enum PollError { #[error("network error: {0}")] Network(#[from] reqwest::Error), /* … */ }
+pub enum PollError { Network(#[from] reqwest::Error), Parse(#[from] rss::Error), /* … */ }
 ```
 
 ---
 
-## 22 — Persistance: formats et chemins
+## 25 — Formats et chemins de persistance
 
-Fichiers par utilisateur:
+Fichiers côté utilisateur:
 - `config.json`, `feeds.json`, `read_store.json`, `articles_store.json`, `seen_store.json`.
-- Linux: `~/.config/readrss/`; macOS: `~/Library/Application Support/readrss/`; Windows: `%APPDATA%/readrss/`.
+- Dossiers: Linux `~/.config/readrss/`, macOS `~/Library/Application Support/readrss/`, Windows `%APPDATA%/readrss/`.
+
+Lecture/écriture JSON via `serde_json` (lisible et diffable).
 
 ---
 
-## 23 — Tests et mocks HTTP
+## 26 — Tests et “poll_once”
 
-- Mocks via `wiremock` (levier sur reqwest).
-- `poll_once` facilite des tests unitaires d’un seul tour de polling.
+`poll_once` exécute un tour synchrone (utile pour tests ou action “rafraîchir maintenant”).
 
----
-
-## 24 — Packaging local et CI
-
-- Script local `.deb`: `scripts/build_deb.sh` (cargo‑deb en release par défaut).
-- Release GitHub Actions: artefacts Linux (.tar.gz + .deb) et Windows (.zip).
-- Correctif: `cargo deb --no-build` pour réutiliser le binaire déjà compilé.
+Mocks: `wiremock` côté requêtes HTTP (injectable car on utilise `reqwest`).
 
 ---
 
-## 25 — Sécurité: menaces et parades
+## 27 — Packaging et Release CI
 
-- Refus HTTP (downgrade, MITM). 
-- Taille limitant la surface d’attaque DoS.
-- Déduplication empêche l’inflation mémoire sur replays.
-- Parsing RSS/Atom sous contrôle, pas d’exécution HTML (texte).
-
----
-
-## 26 — Performance
-
-- Streaming réseau; pas de WebView; rendu UI 2D via wgpu/egui.
-- Cache articles par feed + pagination.
-- Evite copies coûteuses; usage d’`Arc`, `RwLock`, slices.
+Local: `scripts/build_deb.sh` (utilise `cargo-deb`).
+CI Release: artefacts Linux (.tar.gz + .deb) et Windows (.zip). 
+Précaution Linux: `cargo deb --no-build` après la compilation pour éviter le double `--release`.
 
 ---
 
-## 27 — UX: principes
+## 28 — Sécurité élargie (menaces ↔ contre‑mesures)
 
-- Minimalisme: 3 gestes clés (ajouter, lire, ouvrir).
-- Feedback immédiat pour les erreurs (URL, réseau).
-- Paramètres sobres, pertinents.
+- HTTP refusé: évite downgrade/MITM.
+- Taille max: réduit le risque DoS.
+- Pas d’HTML riche: surface XSS nulle dans l’UI.
+- Déduplication: évite re‑push infini d’articles répétés.
 
----
-
-## 28 — Démonstration: add → fetch → read
-
-Pseudo‑séquence:
-
-```
-UI (Ajouter) → DataApi.add_feed → poll_once → SeenStore.is_new_and_mark → DataApi.upsert_articles → UI list
-```
+Limites connues: pas de sandbox réseau avancée; confiance dans `reqwest/rustls`.
 
 ---
 
-## 29 — Dépannage
+## 29 — Performance et mémoire
 
-- Aucun article: vérifier HTTPS, connectivité, taille flux, logs `RUST_LOG=info`.
-- Emojis manquants (Linux): installer `fonts-noto-color-emoji`.
-- Fichiers corrompus: les .tmp servent de fallback lecture.
+- Download en streaming; pas de copie inutile (Buffers BytesMut → freeze).
+- Structures compactes; tri et truncate pour borner la taille des caches.
+- UI: wgpu/egui rapide, pas de DOM.
 
----
-
-## 30 — Roadmap
-
-- macOS artefacts, .desktop + icône pour Linux.
-- Recherche plein‑texte, dossiers/étiquettes.
-- Export/Import OPML.
-- Internationalisation (i18n) et thèmes pré‑définis.
+Mesure recommandée: profiler `tracing` + `cargo flamegraph` si besoin.
 
 ---
 
-## Annexes — extraits clés
+## 30 — Dépannage & Roadmap
 
-### Poller (extrait)
+Checklist panne:
+- Aucun article: vérifier URL HTTPS, connectivité, logs (`RUST_LOG=info`).
+- Emojis cassés sous Linux: installer `fonts-noto-color-emoji`.
+- JSON corrompu: les `.tmp` servent de secours (recréer si besoin).
 
+Roadmap: macOS artefacts, .desktop+icône, recherche plein‑texte, OPML, i18n, thèmes.
+
+---
+
+## Annexes — extraits de code clés (références rapides)
+
+### A1. spawn_poller (boucle)
 ```rust
 pub fn spawn_poller(/* … */) -> PollerHandle {
   let (cancel_tx, mut cancel_rx) = broadcast::channel(1);
@@ -394,26 +405,21 @@ pub fn spawn_poller(/* … */) -> PollerHandle {
 }
 ```
 
-### Conversion RSS → FeedEntry (extrait)
-
-```rust
-pub fn from_rss_item(feed_id: &str, item: &rss::Item) -> Self { /* auteur, catégorie, content:encoded, enclosure */ }
-```
-
-### DataApi.upsert_articles (extrait)
-
+### A2. DataApi.upsert_articles (tri et borne)
 ```rust
 slot.sort_by(|a, b| b.published_at.cmp(&a.published_at));
 if slot.len() > MAX_PER_FEED { slot.truncate(MAX_PER_FEED); }
 ```
 
-### Entrée main.rs (extrait)
-
+### A3. Validation URL en UI
 ```rust
-eframe::run_native("ReadRSS", NativeOptions { viewport: egui::ViewportBuilder::default().with_inner_size([800.0, 800.0]) , ..Default::default() },
-  Box::new(move |cc| { install_emoji_friendly_fonts(&cc.egui_ctx); Box::new(RssApp::new(init)) }))
+if parsed.scheme() != "https" { /* feedback et refus */ }
 ```
 
----
+### A4. Entrée main.rs
+```rust
+eframe::run_native("ReadRSS", NativeOptions { /* viewport */ },
+  Box::new(move |cc| { install_emoji_friendly_fonts(&cc.egui_ctx); Box::new(RssApp::new(init)) }))
+```
 
 Fin du guide.
