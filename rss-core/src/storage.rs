@@ -10,7 +10,6 @@ use crate::feed::FeedEntry;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SeenData {
-    // feed_id -> set of entry identities
     pub seen: HashMap<String, HashSet<String>>,
 }
 
@@ -21,6 +20,13 @@ pub struct SeenStore {
 }
 
 impl SeenStore {
+    // ===
+    //
+    //
+    // Crée un magasin en mémoire (non persisté).
+    //
+    //
+    // ===
     pub fn in_memory() -> Self {
         Self {
             inner: Arc::new(RwLock::new(SeenData::default())),
@@ -28,6 +34,13 @@ impl SeenStore {
         }
     }
 
+    // ===
+    //
+    //
+    // Charge (ou initialise) un magasin persisté depuis un fichier JSON.
+    //
+    //
+    // ===
     pub async fn load_from(path: impl AsRef<Path>) -> Self {
         let path = path.as_ref().to_path_buf();
         let data = match tokio::fs::read(&path).await {
@@ -40,6 +53,13 @@ impl SeenStore {
         }
     }
 
+    // ===
+    //
+    //
+    // Retourne true si l’article est nouveau et le marque comme vu (avec persistance).
+    //
+    //
+    // ===
     pub async fn is_new_and_mark(&self, entry: &FeedEntry) -> bool {
         let key = entry.identity();
         let feed_id = entry.feed_id.clone();
@@ -57,6 +77,13 @@ impl SeenStore {
         }
     }
 
+    // ===
+    //
+    //
+    // Sérialise et sauve l’état si un chemin est configuré; sinon no-op.
+    //
+    //
+    // ===
     async fn persist(&self) -> Result<(), std::io::Error> {
         if let Some(path) = &self.path {
             let inner = self.inner.read().await;

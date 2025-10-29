@@ -1,5 +1,13 @@
 use thiserror::Error;
 
+// ===
+//
+//
+// Erreurs possibles renvoyées par le moteur de polling et de parsing.
+//
+//
+// ===
+
 #[derive(Debug, Error)]
 pub enum PollError {
     #[error("network error: {0}")]

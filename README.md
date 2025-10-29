@@ -98,6 +98,50 @@ sudo apt update && sudo apt install -y fonts-noto-color-emoji
 - `rss-core`: bibliothèque cœur (polling, parsing, stockage, API)
 - `rss-gui`: application graphique (egui/eframe) qui consomme `rss-core`
 
+## Packaging
+
+- Build release (binaire):
+
+```bash
+./scripts/build_release.sh
+```
+
+- Paquet .deb (nécessite cargo-deb):
+
+```bash
+./scripts/build_deb.sh
+# Le .deb est produit dans target/debian/
+```
+
+Note: le .deb installe le binaire sous `/usr/bin/readrss` et le README dans `/usr/share/doc/readrss/`.
+
+## CI
+
+Un workflow GitHub Actions exécute:
+- Clippy avec `-D warnings`
+- La suite de tests
+- `cargo audit` en respectant `.cargo/audit.toml` (ignorance contrôlée de l’avertissement « paste » transitif via wgpu)
+
+### Release automatisée
+
+- Publier une nouvelle version:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+La CI crée/alimente la Release et attache automatiquement:
+- Linux: `rss-gui-linux-x86_64.tar.gz` et le `.deb` généré
+- Windows: `rss-gui-windows-x86_64.zip`
+
+## Sécurité et limites réseau
+
+- Seules les URLs HTTPS sont autorisées (hors loopback en dev/tests)
+- Timeout par requête configurable (par défaut 15 s)
+- Taille maximale d’un flux: 10 MiB
+- Retries avec backoff exponentiel (base 500 ms)
+
 ## FAQ rapide
 
 - Pourquoi HTTPS obligatoire pour ajouter un flux ?

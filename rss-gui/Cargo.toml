@@ -25,6 +25,18 @@ fontdb = "0.16"
 [features]
 default = []
 
- 
+[package.metadata.deb]
+maintainer = "ReadRSS Maintainers <maintainers@example.com>"
+copyright = "2025"
+depends = "libc6"
+section = "utils"
+priority = "optional"
+assets = [
+	["target/release/rss-gui", "/usr/bin/readrss", "755"],
+	["README.md", "/usr/share/doc/readrss/README.md", "644"],
+]
+extended-description = "Lecteur RSS en Rust avec service de polling et interface graphique minimaliste (egui)."
 
- 
+
+
+

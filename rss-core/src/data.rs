@@ -10,7 +10,6 @@ use crate::feed::{add_feed, list_feeds, remove_feed, FeedDescriptor, FeedEntry, 
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct ReadData {
-    // feed_id -> set of entry identities (marked as read)
     read: HashMap<String, HashSet<String>>,
 }
 
@@ -25,19 +24,23 @@ pub struct DataApi {
 }
 
 impl DataApi {
-    /// Initialize the DataApi by loading persisted feeds and read state from a config directory.
+    // ===
+    //
+    //
+    // Initialise l’API (chargement des feeds, états lus, cache d’articles) depuis un dossier.
+    //
+    //
+    // ===
     pub async fn load_from_dir(feeds: SharedFeedList, dir: impl AsRef<Path>) -> Self {
         let dir = dir.as_ref();
         let feeds_path = dir.join("feeds.json");
         let read_path = dir.join("read_store.json");
         let articles_path = dir.join("articles_store.json");
 
-        // Ensure directory exists
         if let Err(e) = tokio::fs::create_dir_all(dir).await {
             warn!(error = %e, "failed to create config dir");
         }
 
-        // helper: read JSON with fallback to temp file on corruption
         async fn read_json_with_tmp_fallback<T: DeserializeOwned + Default>(path: &Path) -> T {
             match tokio::fs::read(path).await {
                 Ok(bytes) => match serde_json::from_slice::<T>(&bytes) {
@@ -57,17 +60,14 @@ impl DataApi {
             }
         }
 
-        // Load feeds.json and populate the shared store
         let initial_feeds: Vec<FeedDescriptor> = read_json_with_tmp_fallback(&feeds_path).await;
         if !initial_feeds.is_empty() {
             let mut store = feeds.write().await;
             *store = initial_feeds;
         }
 
-        // Load read_store.json
         let read_inner: ReadData = read_json_with_tmp_fallback(&read_path).await;
 
-        // Load articles_store.json (cache des derniers articles)
         let articles_inner: HashMap<String, Vec<FeedEntry>> =
             read_json_with_tmp_fallback(&articles_path).await;
 
@@ -81,6 +81,13 @@ impl DataApi {
         }
     }
 
+    // ===
+    //
+    //
+    // Persiste la liste des flux sur disque (écriture atomique via .tmp).
+    //
+    //
+    // ===
     async fn persist_feeds(&self) {
         let feeds = list_feeds(&self.feeds).await;
         match serde_json::to_vec_pretty(&feeds) {
@@ -88,7 +95,6 @@ impl DataApi {
                 if let Some(parent) = self.feeds_path.parent() {
                     let _ = tokio::fs::create_dir_all(parent).await;
                 }
-                // Ecriture atomique
                 let tmp = self.feeds_path.with_extension("json.tmp");
                 if let Err(e) = tokio::fs::write(&tmp, &bytes).await {
                     warn!(error = %e, path = %tmp.display(), "failed to write temp feeds.json");
@@ -101,6 +107,13 @@ impl DataApi {
         }
     }
 
+    // ===
+    //
+    //
+    // Persiste l’état de lecture sur disque (écriture atomique via .tmp).
+    //
+    //
+    // ===
     async fn persist_read(&self) {
         let inner = self.read_inner.read().await;
         match serde_json::to_vec_pretty(&*inner) {
@@ -120,6 +133,13 @@ impl DataApi {
         }
     }
 
+    // ===
+    //
+    //
+    // Persiste le cache d’articles sur disque (écriture atomique via .tmp).
+    //
+    //
+    // ===
     async fn persist_articles(&self) {
         let inner = self.articles_inner.read().await;
         match serde_json::to_vec_pretty(&*inner) {
@@ -139,25 +159,52 @@ impl DataApi {
         }
     }
 
+    // ===
+    //
+    //
+    // Ajoute un flux et persiste la liste.
+    //
+    //
+    // ===
     pub async fn add_feed(&self, feed: FeedDescriptor) {
         add_feed(&self.feeds, feed).await;
         self.persist_feeds().await;
     }
 
+    // ===
+    //
+    //
+    // Supprime un flux (et ses marques de lecture) puis persiste.
+    //
+    //
+    // ===
     pub async fn remove_feed(&self, feed_id: &str) {
         remove_feed(&self.feeds, feed_id).await;
         self.persist_feeds().await;
-        // Optionally drop read marks for this feed
         let mut inner = self.read_inner.write().await;
         inner.read.remove(feed_id);
         drop(inner);
         self.persist_read().await;
     }
 
+    // ===
+    //
+    //
+    // Retourne la liste des flux.
+    //
+    //
+    // ===
     pub async fn list_feeds(&self) -> Vec<FeedDescriptor> {
         list_feeds(&self.feeds).await
     }
 
+    // ===
+    //
+    //
+    // Indique si un article est marqué comme lu.
+    //
+    //
+    // ===
     pub async fn is_read(&self, entry: &FeedEntry) -> bool {
         let key = entry.identity();
         let inner = self.read_inner.read().await;
@@ -168,6 +215,13 @@ impl DataApi {
             .unwrap_or(false)
     }
 
+    // ===
+    //
+    //
+    // Marque un article comme lu et persiste si nécessaire.
+    //
+    //
+    // ===
     pub async fn mark_read(&self, entry: &FeedEntry) {
         let key = entry.identity();
         let mut inner = self.read_inner.write().await;
@@ -180,12 +234,17 @@ impl DataApi {
         }
     }
 
-    /// Upsert et persiste un lot d'articles pour un feed (dedup + tri + truncate)
+    // ===
+    //
+    //
+    // Upsert et persiste un lot d’articles pour un feed (déduplication, tri décroissant, truncate).
+    //
+    //
+    // ===
     pub async fn upsert_articles(&self, feed_id: &str, entries: Vec<FeedEntry>) {
         const MAX_PER_FEED: usize = 300;
         let mut inner = self.articles_inner.write().await;
         let slot = inner.entry(feed_id.to_string()).or_default();
-        // Index existants par identity
         let mut existing: HashSet<String> = slot.iter().map(|e| e.identity()).collect();
         for e in entries {
             let id = e.identity();
@@ -193,7 +252,6 @@ impl DataApi {
                 slot.push(e);
             }
         }
-        // Tri par date décroissante
         slot.sort_by(|a, b| b.published_at.cmp(&a.published_at));
         if slot.len() > MAX_PER_FEED {
             slot.truncate(MAX_PER_FEED);
@@ -202,13 +260,25 @@ impl DataApi {
         self.persist_articles().await;
     }
 
-    /// Liste les articles persistés pour un feed donné
+    // ===
+    //
+    //
+    // Liste les articles persistés pour un feed donné.
+    //
+    //
+    // ===
     pub async fn list_articles(&self, feed_id: &str) -> Vec<FeedEntry> {
         let inner = self.articles_inner.read().await;
         inner.get(feed_id).cloned().unwrap_or_default()
     }
 
-    /// Liste tous les articles persistés, toutes sources confondues
+    // ===
+    //
+    //
+    // Liste tous les articles persistés, toutes sources confondues.
+    //
+    //
+    // ===
     pub async fn list_all_articles(&self) -> Vec<FeedEntry> {
         let inner = self.articles_inner.read().await;
         let mut all = Vec::new();

@@ -34,12 +34,9 @@ pub struct UiConfig {
     pub articles_per_page: usize,
 }
 
-// Default est dérivé automatiquement pour AppConfig (tous les champs ont un Default explicite)
-
 impl Default for ThemeConfig {
     fn default() -> Self {
         Self {
-            // VS Code Dark theme colors
             background_color: [30, 30, 30],
             panel_color: [37, 37, 38],
             accent_color: [0, 122, 204],
@@ -73,7 +70,13 @@ impl Default for UiConfig {
 }
 
 impl AppConfig {
-    /// Récupère le chemin du fichier de configuration
+    // ===
+    //
+    //
+    // Chemin du fichier de configuration utilisateur.
+    //
+    //
+    // ===
     pub fn config_file_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
         let config_dir =
             dirs::config_dir().ok_or("Impossible de trouver le dossier de configuration")?;
@@ -84,14 +87,22 @@ impl AppConfig {
         Ok(app_config_dir.join("config.json"))
     }
 
-    /// Charge la configuration depuis le fichier, ou crée une configuration par défaut
+    // ===
+    //
+    //
+    // Charge la configuration depuis le fichier, sinon crée et sauvegarde une configuration par défaut.
+    //
+    //
+    // ===
     pub fn load() -> Self {
         match Self::load_from_file() {
             Ok(config) => config,
             Err(e) => {
-                eprintln!("Impossible de charger la configuration: {}. Utilisation des valeurs par défaut.", e);
+                eprintln!(
+                    "Impossible de charger la configuration: {}. Utilisation des valeurs par défaut.",
+                    e
+                );
                 let default_config = Self::default();
-                // Essaie de sauvegarder la configuration par défaut
                 if let Err(save_err) = default_config.save() {
                     eprintln!(
                         "Impossible de sauvegarder la configuration par défaut: {}",
@@ -103,7 +114,13 @@ impl AppConfig {
         }
     }
 
-    /// Charge la configuration depuis le fichier
+    // ===
+    //
+    //
+    // Lecture et désérialisation de la configuration à partir du fichier.
+    //
+    //
+    // ===
     fn load_from_file() -> Result<Self, Box<dyn std::error::Error>> {
         let config_path = Self::config_file_path()?;
         let config_content = std::fs::read_to_string(config_path)?;
@@ -111,7 +128,13 @@ impl AppConfig {
         Ok(config)
     }
 
-    /// Sauvegarde la configuration dans le fichier
+    // ===
+    //
+    //
+    // Sérialise et sauvegarde la configuration vers le fichier utilisateur.
+    //
+    //
+    // ===
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         let config_path = Self::config_file_path()?;
         let config_json = serde_json::to_string_pretty(self)?;
@@ -119,27 +142,51 @@ impl AppConfig {
         Ok(())
     }
 
-    /// Met à jour le thème et sauvegarde
+    // ===
+    //
+    //
+    // Met à jour la section thème et persiste la modification.
+    //
+    //
+    // ===
     pub fn update_theme(&mut self, theme: ThemeConfig) -> Result<(), Box<dyn std::error::Error>> {
         self.theme = theme;
         self.save()
     }
 
-    /// Met à jour la configuration des flux et sauvegarde
+    // ===
+    //
+    //
+    // Met à jour la section flux RSS et persiste la modification.
+    //
+    //
+    // ===
     pub fn update_feeds(&mut self, feeds: FeedConfig) -> Result<(), Box<dyn std::error::Error>> {
         self.feeds = feeds;
         self.save()
     }
 
-    /// Met à jour la configuration UI et sauvegarde
+    // ===
+    //
+    //
+    // Met à jour la section interface et persiste la modification.
+    //
+    //
+    // ===
     pub fn update_ui(&mut self, ui: UiConfig) -> Result<(), Box<dyn std::error::Error>> {
         self.ui = ui;
         self.save()
     }
 }
 
-// Utilitaires pour convertir les couleurs
 impl ThemeConfig {
+    // ===
+    //
+    //
+    // Convertit la couleur de fond en egui::Color32.
+    //
+    //
+    // ===
     pub fn background_color32(&self) -> egui::Color32 {
         egui::Color32::from_rgb(
             self.background_color[0],
@@ -148,26 +195,46 @@ impl ThemeConfig {
         )
     }
 
+    // ===
+    //
+    //
+    // Convertit la couleur de panneau en egui::Color32.
+    //
+    //
+    // ===
     pub fn panel_color32(&self) -> egui::Color32 {
-        egui::Color32::from_rgb(
-            self.panel_color[0],
-            self.panel_color[1],
-            self.panel_color[2],
-        )
+        egui::Color32::from_rgb(self.panel_color[0], self.panel_color[1], self.panel_color[2])
     }
 
+    // ===
+    //
+    //
+    // Convertit la couleur d’accent en egui::Color32.
+    //
+    //
+    // ===
     pub fn accent_color32(&self) -> egui::Color32 {
-        egui::Color32::from_rgb(
-            self.accent_color[0],
-            self.accent_color[1],
-            self.accent_color[2],
-        )
+        egui::Color32::from_rgb(self.accent_color[0], self.accent_color[1], self.accent_color[2])
     }
 
+    // ===
+    //
+    //
+    // Convertit la couleur de texte en egui::Color32.
+    //
+    //
+    // ===
     pub fn text_color32(&self) -> egui::Color32 {
         egui::Color32::from_rgb(self.text_color[0], self.text_color[1], self.text_color[2])
     }
 
+    // ===
+    //
+    //
+    // Convertit la couleur de texte secondaire en egui::Color32.
+    //
+    //
+    // ===
     pub fn secondary_text_color32(&self) -> egui::Color32 {
         egui::Color32::from_rgb(
             self.secondary_text_color[0],
@@ -176,11 +243,15 @@ impl ThemeConfig {
         )
     }
 
+    // ===
+    //
+    //
+    // Convertit la couleur de bordure en egui::Color32.
+    //
+    //
+    // ===
     pub fn border_color32(&self) -> egui::Color32 {
-        egui::Color32::from_rgb(
-            self.border_color[0],
-            self.border_color[1],
-            self.border_color[2],
-        )
+        egui::Color32::from_rgb(self.border_color[0], self.border_color[1], self.border_color[2])
     }
 }
+

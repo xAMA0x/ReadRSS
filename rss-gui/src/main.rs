@@ -4,13 +4,28 @@ use std::sync::Arc;
 
 use eframe::{egui, NativeOptions};
 use reqwest::{redirect, ClientBuilder};
-use rss_core::{shared_feed_list, spawn_poller, DataApi, PollConfig, SeenStore};
+use rss_core::{shared_feed_list, spawn_poller, AppConfig, DataApi, PollConfig, SeenStore};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
 use crate::app::{AppInit, RssApp};
 
+// ===
+//
+//
+// Point d’entrée de l’application GUI (eframe/egui): initialisation, config, et lancement.
+//
+//
+// ===
+
+// ===
+//
+//
+// Initialise le runtime, les services (data/poller) et lance la fenêtre principale.
+//
+//
+// ===
 fn main() -> eframe::Result<()> {
     init_tracing();
 
@@ -67,42 +82,85 @@ fn main() -> eframe::Result<()> {
     )
 }
 
+// ===
+//
+//
+// Initialise le logging via tracing (filtrable par RUST_LOG).
+//
+//
+// ===
 fn init_tracing() {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }
 
+// ===
+//
+//
+// Dossier de configuration de l’application.
+//
+//
+// ===
 fn config_dir() -> std::path::PathBuf {
-    // Linux: ~/.config/readrss
     let mut dir = dirs::config_dir().unwrap_or_else(|| std::env::current_dir().unwrap());
     dir.push("readrss");
     dir
 }
 
 fn load_poll_config() -> PollConfig {
-    let mut path = config_dir();
-    path.push("config.json");
-    // Use default if not found
-    if path.exists() {
-        // Load via library helper
-        PollConfig::from_file(&path)
-    } else {
-        PollConfig::default()
+    // ===
+    //
+    //
+    // Construit PollConfig depuis AppConfig (section feeds) pour aligner l’UI et le runtime.
+    //
+    //
+    // ===
+    let app_cfg = AppConfig::load();
+    PollConfig {
+        interval: std::time::Duration::from_secs(
+            app_cfg.feeds.update_interval_minutes.max(1) * 60,
+        ),
+        request_timeout: std::time::Duration::from_secs(
+            app_cfg.feeds.request_timeout_seconds.max(1),
+        ),
+        max_retries: app_cfg.feeds.retry_attempts.max(1) as usize,
+        ..PollConfig::default()
     }
 }
 
+// ===
+//
+//
+// Charge/initialise le magasin de “vus” (SeenStore) depuis le disque.
+//
+//
+// ===
 fn load_seen_store(runtime: &Arc<Runtime>) -> SeenStore {
     let mut path = config_dir();
     path.push("seen_store.json");
     runtime.block_on(SeenStore::load_from(&path))
 }
 
+// ===
+//
+//
+// Charge l’API de données (feeds, read-state, cache d’articles) depuis le dossier config.
+//
+//
+// ===
 fn load_data_api(runtime: &Arc<Runtime>, feeds: rss_core::SharedFeedList) -> Arc<DataApi> {
     let dir = config_dir();
     let api = runtime.block_on(DataApi::load_from_dir(feeds, dir));
     Arc::new(api)
 }
 
+// ===
+//
+//
+// Ajoute des polices supportant emojis/symboles si disponibles (fontconfig puis chemins connus).
+//
+//
+// ===
 fn install_emoji_friendly_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
 
@@ -135,16 +193,12 @@ fn install_emoji_friendly_fonts(ctx: &egui::Context) {
     }
 
     let mut added: Vec<String> = Vec::new();
-
-    // 1) Préférer la découverte via fontconfig (fontdb) pour couvrir les environnements sandboxés (ex: /run/host/fonts)
     #[allow(unused_mut)]
     let mut _used_fontdb = false;
     #[cfg(not(target_os = "windows"))]
     {
         let mut db = fontdb::Database::new();
         db.load_system_fonts();
-
-        // Ordre de préférence
         let families = [
             "Noto Color Emoji",
             "Noto Emoji",
@@ -162,7 +216,6 @@ fn install_emoji_friendly_fonts(ctx: &egui::Context) {
             };
             if let Some(id) = db.query(&query) {
                 if let Some(face) = db.face(id) {
-                    // Tenter de récupérer un chemin vers le fichier de police
                     let maybe_path = match &face.source {
                         fontdb::Source::File(p) => Some(p.clone()),
                         _ => None,
@@ -181,14 +234,10 @@ fn install_emoji_friendly_fonts(ctx: &egui::Context) {
             }
         }
     }
-
-    // 2) Fallback: chemins connus (peuvent ne pas exister selon la distribution)
     if added.is_empty() {
         let candidates = [
-            // Emoji (couleur)
             "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
             "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
-            // Symboles étendus
             "/usr/share/fonts/opentype/noto/NotoSansSymbols2-Regular.otf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         ];

@@ -1,4 +1,5 @@
-use httpmock::prelude::*;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 use reqwest::Client;
 use rss_core::{poller::poll_once, FeedDescriptor, PollConfig, SeenStore};
 
@@ -30,18 +31,22 @@ fn sample_rss() -> String {
 
 #[tokio::test]
 async fn poll_once_emits_new_articles_and_deduplicates() {
-    let server = MockServer::start();
-    let _m = server.mock(|when, then| {
-        when.method(GET).path("/feed");
-        then.status(200)
-            .header("content-type", "application/rss+xml")
-            .body(sample_rss());
-    });
+  let server = MockServer::start().await;
 
-    let feed = FeedDescriptor {
+  Mock::given(method("GET"))
+    .and(path("/feed"))
+    .respond_with(
+      ResponseTemplate::new(200)
+        .insert_header("content-type", "application/rss+xml")
+        .set_body_string(sample_rss()),
+    )
+    .mount(&server)
+    .await;
+
+  let feed = FeedDescriptor {
         id: "feed1".into(),
         title: "Test".into(),
-        url: format!("{}/feed", server.base_url()),
+    url: format!("{}/feed", server.uri()),
     };
     let feeds = vec![feed];
     let cfg = PollConfig {
