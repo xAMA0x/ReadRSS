@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     pub theme: ThemeConfig,
     pub feeds: FeedConfig,
@@ -34,15 +34,7 @@ pub struct UiConfig {
     pub articles_per_page: usize,
 }
 
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            theme: ThemeConfig::default(),
-            feeds: FeedConfig::default(),
-            ui: UiConfig::default(),
-        }
-    }
-}
+// Default est dérivé automatiquement pour AppConfig (tous les champs ont un Default explicite)
 
 impl Default for ThemeConfig {
     fn default() -> Self {
