@@ -12,8 +12,8 @@ if ! command -v cargo-deb >/dev/null 2>&1; then
   cargo install cargo-deb
 fi
 
-echo "[Build] cargo deb -p rss-gui -- --release"
-cargo deb -p rss-gui -- --release
+echo "[Build] cargo deb -p rss-gui"
+cargo deb -p rss-gui
 
 TARGET_DIR=${CARGO_TARGET_DIR:-}
 if [[ -z "${TARGET_DIR}" && -f .cargo/config.toml ]]; then

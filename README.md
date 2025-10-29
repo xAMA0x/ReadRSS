@@ -1,158 +1,57 @@
 # ReadRSS
 
-Un lecteur RSS simple et moderne en Rust, avec rafraîchissement en arrière‑plan et une interface graphique fluide (egui/wgpu).
+Lecteur RSS minimal et rapide. Rien d’inutile.
 
-## Ce que vous pouvez faire
+## Utiliser
 
-- Ajouter des flux RSS (HTTPS uniquement) et parcourir leurs articles
-- Voir la liste agrégée de tous vos flux ou filtrer par flux
-- Marquer les articles comme lus / non lus, « tout marquer comme lu »
-- Ouvrir les articles dans votre navigateur par défaut (pas de WebView intégré)
-- Découvrir des flux recommandés (catégories)
-- Personnaliser l’interface (thème, largeur du panneau, aperçus, pagination) via la page Paramètres
-
-## Installation rapide
-
-Prérequis:
-- Linux, macOS ou Windows récent
-- Rust stable (via rustup)
-
-Commandes:
+Prérequis: Rust stable.
 
 ```bash
-# Installer/activer la toolchain stable
-rustup default stable
-
-# Vérifier que tout est prêt
-cargo --version
-
-# Lancer l’application
 cargo run -p rss-gui
 ```
 
-Astuce: au premier lancement, un dossier de configuration utilisateur est créé automatiquement.
+En 3 actions:
+- Ajouter un flux (HTTPS). Panneau gauche → titre (optionnel) + URL → « Ajouter ».
+- Lire. Cliquez un article → « Ouvrir » pour le navigateur.
+- Régler l’interface. « ⚙️ Paramètres » (thème, aperçus, pagination, largeur panneau).
 
-## Utilisation en 30 secondes
+## Installer
 
-1) Dans le panneau de gauche, saisissez un titre (optionnel) et l’URL d’un flux RSS en HTTPS, puis « Ajouter ».
-
-2) Cliquez sur un flux pour voir ses articles, ou sur « Tous » pour la vue agrégée.
-
-3) Cliquez sur un titre pour voir le détail; utilisez « Ouvrir » pour lire l’article dans votre navigateur.
-
-4) La page « ⚙️ Paramètres » vous permet d’ajuster le thème, l’affichage des aperçus et le nombre d’articles listés.
-
-## Emplacement des données
-
-Les fichiers sont stockés par utilisateur dans:
-
-- Linux: `~/.config/readrss/`
-- macOS: `~/Library/Application Support/readrss/`
-- Windows: `%APPDATA%/readrss/`
-
-Contenu typique (créé à la demande):
-- `config.json` — paramètres de l’app (thème, interface, flux)
-- `feeds.json`, `articles_store.json`, `read_store.json`, `seen_store.json` — vos données
-
-Exemple minimal de `config.json` (toutes les clés sont optionnelles, des valeurs par défaut existent):
-
-```json
-{
-	"theme": {
-		"background_color": [30, 30, 30],
-		"panel_color": [37, 37, 38],
-		"accent_color": [0, 122, 204],
-		"text_color": [204, 204, 204],
-		"secondary_text_color": [150, 150, 150],
-		"border_color": [60, 60, 60]
-	},
-	"feeds": {
-		"update_interval_minutes": 30,
-		"max_articles_per_feed": 100,
-		"request_timeout_seconds": 10,
-		"retry_attempts": 3
-	},
-	"ui": {
-		"font_size": 14.0,
-		"left_panel_width": 300.0,
-		"show_article_preview": true,
-		"articles_per_page": 20
-	}
-}
-```
-
-La page « Paramètres » modifie et sauvegarde automatiquement ce fichier.
-
-## Remarques plateforme (Linux)
-
-- Emojis: installez une police dédiée si besoin (ex: Noto Color Emoji)
-
-```bash
-sudo apt update && sudo apt install -y fonts-noto-color-emoji
-```
-
-- Graphique: `wgpu` sélectionne automatiquement Vulkan/GL. Si votre environnement est minimal, installez les bibliothèques X11/Wayland usuelles.
-
-## Structure du projet
-
-- `rss-core`: bibliothèque cœur (polling, parsing, stockage, API)
-- `rss-gui`: application graphique (egui/eframe) qui consomme `rss-core`
-
-## Packaging
-
-- Build release (binaire):
-
+Build local:
 ```bash
 ./scripts/build_release.sh
 ```
 
-- Paquet .deb (nécessite cargo-deb):
-
+Paquet Debian (si vous préférez):
 ```bash
 ./scripts/build_deb.sh
-# Le .deb est produit dans target/debian/
 ```
 
-Note: le .deb installe le binaire sous `/usr/bin/readrss` et le README dans `/usr/share/doc/readrss/`.
+Releases GitHub: binaires Linux (.tar.gz + .deb) et Windows (.zip).
 
-## CI
+## Données & config
 
-Un workflow GitHub Actions exécute:
-- Clippy avec `-D warnings`
-- La suite de tests
-- `cargo audit` en respectant `.cargo/audit.toml` (ignorance contrôlée de l’avertissement « paste » transitif via wgpu)
+Emplacement par utilisateur:
+- Linux: `~/.config/readrss/`
+- macOS: `~/Library/Application Support/readrss/`
+- Windows: `%APPDATA%/readrss/`
 
-### Release automatisée
+Fichiers clés:
+- `config.json` (géré par la page Paramètres)
+- `feeds.json`, `articles_store.json`, `read_store.json`, `seen_store.json`
 
-- Publier une nouvelle version:
+## Sécurité
 
+- Ajout de flux: HTTPS obligatoire (loopback autorisé en dev/tests)
+- Timeout requêtes, retries avec backoff, taille max flux 10 MiB
+
+## Plateforme (Linux)
+
+Emoji manquants ?
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+sudo apt install -y fonts-noto-color-emoji
 ```
-
-La CI crée/alimente la Release et attache automatiquement:
-- Linux: `rss-gui-linux-x86_64.tar.gz` et le `.deb` généré
-- Windows: `rss-gui-windows-x86_64.zip`
-
-## Sécurité et limites réseau
-
-- Seules les URLs HTTPS sont autorisées (hors loopback en dev/tests)
-- Timeout par requête configurable (par défaut 15 s)
-- Taille maximale d’un flux: 10 MiB
-- Retries avec backoff exponentiel (base 500 ms)
-
-## FAQ rapide
-
-- Pourquoi HTTPS obligatoire pour ajouter un flux ?
-	> Pour la sécurité. Les URLs HTTP sont refusées par l’UI.
-
-- Où sont les aperçus des articles ?
-	> Ils sont affichés en texte brut (converti depuis HTML). Désactivez‑les dans « Paramètres » si vous préférez une liste plus compacte.
-
-- Comment lire les articles avec leur mise en page ?
-	> Cliquez sur « Ouvrir »: l’URL s’ouvre dans votre navigateur par défaut.
 
 ## Licence
 
-MIT — voir le champ `license` dans `Cargo.toml`.
+MIT
