@@ -13,14 +13,18 @@ use crate::error::PollError;
 use crate::feed::{FeedDescriptor, FeedEntry, SharedFeedList};
 use crate::storage::SeenStore;
 
+// ===
+//
+//
+// Configuration du poller (intervalle, timeouts, retries et backoff).
+//
+//
+// ===
 #[derive(Debug, Clone)]
 pub struct PollConfig {
     pub interval: Duration,
-    /// Per-request timeout
     pub request_timeout: Duration,
-    /// Max number of retries on network errors
     pub max_retries: usize,
-    /// Base backoff in milliseconds for exponential backoff
     pub retry_backoff_ms: u64,
 }
 
@@ -41,12 +45,26 @@ pub struct PollerHandle {
 }
 
 impl PollerHandle {
+    // ===
+    //
+    //
+    // Arrête proprement la tâche du poller.
+    //
+    //
+    // ===
     pub async fn stop(self) -> Result<(), PollError> {
         let _ = self.cancel_tx.send(());
         self.join.await.map_err(PollError::from)
     }
 }
 
+// ===
+//
+//
+// Lance une tâche périodique qui récupère les flux et émet des évènements.
+//
+//
+// ===
 pub fn spawn_poller(
     feeds: SharedFeedList,
     config: PollConfig,
@@ -98,16 +116,21 @@ pub fn spawn_poller(
     PollerHandle { cancel_tx, join }
 }
 
+// ===
+//
+//
+// Récupère et parse un flux (RSS, fallback Atom) avec limites et politique HTTPS.
+//
+//
+// ===
 async fn fetch_feed(
     client: &Client,
     feed: &FeedDescriptor,
     timeout: Duration,
 ) -> Result<Vec<FeedEntry>, PollError> {
-    // HTTPS policy enforced in production
     let url = Url::parse(&feed.url)?;
     #[cfg(not(test))]
     if url.scheme() != "https" {
-        // Autoriser HTTP uniquement en loopback pour tests/développement local
         let host_ok = matches!(
             url.host_str(),
             Some("localhost") | Some("127.0.0.1") | Some("::1")
@@ -117,7 +140,7 @@ async fn fetch_feed(
         }
     }
 
-    const MAX_FEED_BYTES: usize = 10 * 1024 * 1024; // 10 MiB
+    const MAX_FEED_BYTES: usize = 10 * 1024 * 1024;
     let response = client.get(url).timeout(timeout).send().await?;
     if let Some(len) = response.content_length() {
         if len > MAX_FEED_BYTES as u64 {
@@ -134,7 +157,6 @@ async fn fetch_feed(
         bytes_buf.extend_from_slice(&chunk);
     }
     let bytes = bytes_buf.freeze();
-    // Try RSS first
     let mut cursor_rss = std::io::Cursor::new(bytes.to_vec());
     match rss::Channel::read_from(&mut cursor_rss) {
         Ok(channel) => {
@@ -152,7 +174,6 @@ async fn fetch_feed(
             Ok(entries)
         }
         Err(rss_err) => {
-            // Fallback: try Atom
             let mut cursor = std::io::Cursor::new(bytes.to_vec());
             match atom_syndication::Feed::read_from(&mut cursor) {
                 Ok(atom_feed) => {
@@ -169,15 +190,19 @@ async fn fetch_feed(
                         .collect();
                     Ok(entries)
                 }
-                Err(_e2) => {
-                    // Return the original RSS parse error for compatibility
-                    Err(PollError::from(rss_err))
-                }
+                Err(_e2) => Err(PollError::from(rss_err)),
             }
         }
     }
 }
 
+// ===
+//
+//
+// Wrapper avec retries exponentiels pour la récupération d’un flux.
+//
+//
+// ===
 async fn fetch_feed_with_retries(
     client: &Client,
     feed: &FeedDescriptor,
@@ -200,13 +225,26 @@ async fn fetch_feed_with_retries(
     }
 }
 
+// ===
+//
+//
+// Evènements émis par le poller.
+//
+//
+// ===
 #[derive(Debug, Clone)]
 pub enum Event {
     NewArticles(String, Vec<FeedEntry>),
 }
 
 impl PollConfig {
-    /// Load PollConfig from a JSON file path; if missing or invalid, return defaults.
+    // ===
+    //
+    //
+    // Charge PollConfig depuis un fichier JSON; en cas d’erreur renvoie les défauts.
+    //
+    //
+    // ===
     pub fn from_file(path: impl AsRef<Path>) -> Self {
         let path = path.as_ref();
         let defaults = PollConfig::default();
@@ -245,7 +283,13 @@ impl PollConfig {
     }
 }
 
-/// Poll all feeds once and return generated events. Useful for tests.
+// ===
+//
+//
+// Exécute un tour de polling synchrone (tests, rafraîchissement immédiat).
+//
+//
+// ===
 pub async fn poll_once(
     feeds: &[FeedDescriptor],
     cfg: &PollConfig,

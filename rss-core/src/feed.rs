@@ -29,19 +29,24 @@ pub struct FeedEntry {
 }
 
 impl FeedEntry {
+    // ===
+    //
+    //
+    // Convertit un rss::Item en FeedEntry interne.
+    //
+    //
+    // ===
     pub fn from_rss_item(feed_id: &str, item: &rss::Item) -> Self {
         let published_at = item
             .pub_date()
             .and_then(|value| DateTime::parse_from_rfc2822(value).ok())
             .map(|dt| dt.with_timezone(&Utc));
 
-        // Extract author from Dublin Core extension or author field
         let author = item
             .dublin_core_ext()
             .and_then(|dc| dc.creators().first().map(|s| s.to_string()))
             .or_else(|| item.author().map(|s| s.to_string()));
 
-        // Extract category from categories or Dublin Core subject
         let category = item
             .categories()
             .first()
@@ -51,7 +56,6 @@ impl FeedEntry {
                     .and_then(|dc| dc.subjects().first().map(|s| s.to_string()))
             });
 
-        // Extract content:encoded (RSS content module)
         let content_html = item
             .extensions()
             .get("content")
@@ -59,7 +63,6 @@ impl FeedEntry {
             .and_then(|v| v.first())
             .and_then(|ext| ext.value.clone());
 
-        // Extract image url from enclosure (basic approach)
         let image_url = item.enclosure().map(|e| e.url().to_string());
 
         Self {
@@ -76,8 +79,13 @@ impl FeedEntry {
         }
     }
 
-    /// Returns a stable identity string for deduplication.
-    /// Priority: GUID > URL > title+timestamp hash
+    // ===
+    //
+    //
+    // Identité stable pour déduplication (priorité: GUID > URL > titre+timestamp).
+    //
+    //
+    // ===
     pub fn identity(&self) -> String {
         if let Some(g) = &self.guid {
             return format!("guid:{}", g);
@@ -89,6 +97,13 @@ impl FeedEntry {
         format!("title:{}@{}", self.title, ts)
     }
 
+    // ===
+    //
+    //
+    // Convertit un atom::Entry en FeedEntry interne.
+    //
+    //
+    // ===
     pub fn from_atom_entry(feed_id: &str, entry: &atom::Entry) -> Self {
         let published_at = entry
             .published()
@@ -106,10 +121,7 @@ impl FeedEntry {
             .map(|l| l.href.clone())
             .unwrap_or_default();
 
-        // Prefer inline content when available
         let content_html = entry.content().and_then(|c| c.value.clone());
-
-        // Image detection for Atom (optional): keep None for now
         let image_url = None;
 
         Self {
@@ -129,21 +141,49 @@ impl FeedEntry {
 
 pub type SharedFeedList = Arc<RwLock<Vec<FeedDescriptor>>>;
 
+// ===
+//
+//
+// Crée un stockage partagé (RwLock) pour la liste des flux.
+//
+//
+// ===
 pub fn shared_feed_list(initial: Vec<FeedDescriptor>) -> SharedFeedList {
     Arc::new(RwLock::new(initial))
 }
 
+// ===
+//
+//
+// Ajoute (ou remplace par id) un flux dans le store partagé et persiste côté DataApi.
+//
+//
+// ===
 pub async fn add_feed(store: &SharedFeedList, feed: FeedDescriptor) {
     let mut feeds = store.write().await;
     feeds.retain(|existing| existing.id != feed.id);
     feeds.push(feed);
 }
 
+// ===
+//
+//
+// Supprime un flux par id du store partagé.
+//
+//
+// ===
 pub async fn remove_feed(store: &SharedFeedList, feed_id: &str) {
     let mut feeds = store.write().await;
     feeds.retain(|existing| existing.id != feed_id);
 }
 
+// ===
+//
+//
+// Liste les flux présents dans le store partagé.
+//
+//
+// ===
 pub async fn list_feeds(store: &SharedFeedList) -> Vec<FeedDescriptor> {
     store.read().await.clone()
 }

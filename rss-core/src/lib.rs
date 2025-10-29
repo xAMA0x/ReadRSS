@@ -1,3 +1,10 @@
+// ===
+//
+//
+// Point d’entrée de la crate rss-core: expose les modules et reexports publics.
+//
+//
+// ===
 pub mod config;
 pub mod data;
 pub mod error;

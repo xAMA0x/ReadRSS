@@ -1,0 +1,7 @@
+# Cargo Audit configuration
+# We track and accept this unmaintained advisory transiently via wgpu -> metal -> paste.
+# It does not represent an exploitable issue in our context. We'll revisit on wgpu upgrade.
+[advisories]
+ignore = [
+  "RUSTSEC-2024-0436", # paste unmaintained (transitive via wgpu)
+]

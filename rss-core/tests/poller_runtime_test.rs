@@ -1,4 +1,5 @@
-use httpmock::prelude::*;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 use reqwest::Client;
 use tokio::sync::mpsc;
 
@@ -6,18 +7,21 @@ use rss_core::{shared_feed_list, Event, FeedDescriptor, PollConfig, SeenStore};
 
 #[tokio::test]
 async fn spawn_poller_emits_event() {
-    let server = MockServer::start();
-    let _m = server.mock(|when, then| {
-        when.method(GET).path("/feed");
-        then.status(200)
-            .header("content-type", "application/rss+xml")
-            .body(r#"<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>T</title><item><title>A</title><link>http://e/1</link><guid>1</guid></item></channel></rss>"#);
-    });
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/feed"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/rss+xml")
+                .set_body_string(r#"<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>T</title><item><title>A</title><link>http://e/1</link><guid>1</guid></item></channel></rss>"#),
+        )
+        .mount(&server)
+        .await;
 
     let feeds = shared_feed_list(vec![FeedDescriptor {
         id: "feed1".into(),
         title: "t".into(),
-        url: format!("{}/feed", server.base_url()),
+    url: format!("{}/feed", server.uri()),
     }]);
 
     let cfg = PollConfig {

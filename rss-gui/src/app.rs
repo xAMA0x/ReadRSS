@@ -11,7 +11,14 @@ use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use url::Url;
 
-// Recommandations de flux (catégories prédéfinies)
+// ===
+//
+//
+// UI principale de l’application: structures de navigation, vues et interactions.
+//
+//
+// ===
+
 struct RecFeed {
     title: &'static str,
     url: &'static str,
@@ -23,6 +30,13 @@ struct RecCategory {
     feeds: &'static [RecFeed],
 }
 
+// ===
+//
+//
+// Catégories/flux recommandés (affichés dans Discover).
+//
+//
+// ===
 fn recommended_categories() -> &'static [RecCategory] {
     const TECH: &[RecFeed] = &[
         RecFeed {
@@ -157,6 +171,13 @@ fn recommended_categories() -> &'static [RecCategory] {
     CATS
 }
 
+// ===
+//
+//
+// Génère une couleur pseudo-stable à partir de l’id de flux (palette discrète).
+//
+//
+// ===
 fn color_for_feed(id: &str) -> Color32 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -198,6 +219,13 @@ enum AppView {
     Settings,
 }
 
+// ===
+//
+//
+// État de l’application et données associées.
+//
+//
+// ===
 pub struct RssApp {
     runtime: Arc<Runtime>,
     feeds: SharedFeedList,
@@ -216,12 +244,18 @@ pub struct RssApp {
     feed_search: String,
     add_feedback: Option<(bool, String)>,
     show_unread_only: bool,
-    // Discover
+    
     discover_feedback: Option<(bool, String)>,
-    // Aperçu intégré: supprimé — ouverture dans le navigateur par défaut
 }
 
 impl RssApp {
+    // ===
+    //
+    //
+    // Construit l’appli, charge la config/les articles et déclenche une passe de rafraîchissement.
+    //
+    //
+    // ===
     pub fn new(init: AppInit) -> Self {
         let mut app = Self {
             runtime: init.runtime,
@@ -243,13 +277,11 @@ impl RssApp {
             show_unread_only: false,
             discover_feedback: None,
         };
-        // Charger les articles persistés au démarrage (affichage immédiat)
         let persisted = app.runtime.block_on(app.data_api.list_all_articles());
         if !persisted.is_empty() {
             app.articles = persisted;
         }
 
-        // Pré-remplir par un poll initial pour rafraîchir les flux
         let feeds = app.runtime.block_on(list_feeds(&app.feeds));
         if !feeds.is_empty() {
             let events = app.runtime.block_on(async {
@@ -269,6 +301,13 @@ impl RssApp {
     }
 
     fn draw_discover_home(&mut self, ui: &mut egui::Ui) {
+        // ===
+        //
+        //
+        // Vue d’accueil Discover avec catégories recommandées.
+        //
+        //
+        // ===
         ui.horizontal(|ui| {
             ui.heading(egui::RichText::new("🔎 Discover").size(18.0));
         });
@@ -313,6 +352,13 @@ impl RssApp {
     }
 
     fn draw_discover_category(&mut self, ui: &mut egui::Ui, category_name: String) {
+        // ===
+        //
+        //
+        // Vue de détail d’une catégorie Discover (top 5 flux + bouton suivre).
+        //
+        //
+        // ===
         ui.horizontal(|ui| {
             if ui.button("← Retour").clicked() {
                 self.current_view = AppView::DiscoverHome;
@@ -354,9 +400,15 @@ impl RssApp {
     }
 
     fn setup_dark_theme(&self, ctx: &egui::Context) {
+        // ===
+        //
+        //
+        // Applique le thème à partir de la configuration (couleurs, arrondis, espacements).
+        //
+        //
+        // ===
         let mut style = (*ctx.style()).clone();
 
-        // Couleurs depuis la configuration
         let bg_color = Color32::from_rgb(
             self.config.theme.background_color[0],
             self.config.theme.background_color[1],
@@ -384,17 +436,14 @@ impl RssApp {
         );
         let hover_color = panel_color;
 
-        // Configuration des couleurs
         style.visuals.dark_mode = true;
         style.visuals.panel_fill = panel_color;
         style.visuals.window_fill = bg_color;
         style.visuals.extreme_bg_color = Color32::from_rgb(25, 25, 25);
         style.visuals.faint_bg_color = Color32::from_rgb(45, 45, 45);
 
-        // Couleurs de texte
         style.visuals.override_text_color = Some(text_color);
 
-        // Couleurs des widgets
         style.visuals.widgets.noninteractive.bg_fill = panel_color;
         style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, border_color);
         style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, text_color);
@@ -411,17 +460,14 @@ impl RssApp {
         style.visuals.widgets.active.bg_stroke = Stroke::new(1.0, accent_color);
         style.visuals.widgets.active.fg_stroke = Stroke::new(1.0, Color32::WHITE);
 
-        // Sélection
         style.visuals.selection.bg_fill = Color32::from_rgba_unmultiplied(0, 122, 204, 60);
         style.visuals.selection.stroke = Stroke::new(1.0, accent_color);
 
-        // Bordures arrondies subtiles
         style.visuals.widgets.noninteractive.rounding = Rounding::same(3.0);
         style.visuals.widgets.inactive.rounding = Rounding::same(3.0);
         style.visuals.widgets.hovered.rounding = Rounding::same(3.0);
         style.visuals.widgets.active.rounding = Rounding::same(3.0);
 
-        // Espacements et paddings pour un rendu plus aéré/minimaliste
         style.spacing.item_spacing = egui::vec2(10.0, 8.0);
         style.spacing.button_padding = egui::vec2(10.0, 6.0);
         style.spacing.window_margin = egui::Margin::same(10.0);
@@ -432,10 +478,16 @@ impl RssApp {
     }
 
     fn refresh_updates(&mut self) {
+        // ===
+        //
+        //
+        // Traite les évènements entrants (nouveaux articles) et persiste.
+        //
+        //
+        // ===
         while let Ok(evt) = self.updates.try_recv() {
             match evt {
                 Event::NewArticles(feed_id, mut entries) => {
-                    // Persister les nouveaux articles
                     let to_persist = entries.clone();
                     self.runtime
                         .block_on(self.data_api.upsert_articles(&feed_id, to_persist));
@@ -451,10 +503,16 @@ impl RssApp {
     }
 
     fn feeds_snapshot(&self) -> Vec<FeedDescriptor> {
+        // ===
+        // Vue snapshot des flux (lecture RwLock).
+        // ===
         self.runtime.block_on(list_feeds(&self.feeds))
     }
 
     fn filtered_feeds(&self) -> Vec<FeedDescriptor> {
+        // ===
+        // Filtre de flux par recherche (titre).
+        // ===
         let feeds = self.feeds_snapshot();
         if self.feed_search.is_empty() {
             feeds
@@ -468,7 +526,9 @@ impl RssApp {
     }
 
     fn follow_recommended(&mut self, title: &str, url: &str) {
-        // Éviter les doublons d'URL
+        // ===
+        // Ajoute un flux recommandé et tente un rafraîchissement immédiat.
+        // ===
         let exists = self
             .runtime
             .block_on(list_feeds(&self.feeds))
@@ -518,6 +578,9 @@ impl RssApp {
     }
 
     fn filtered_articles(&self) -> Vec<&FeedEntry> {
+        // ===
+        // Retourne la vue filtrée des articles selon le flux sélectionné.
+        // ===
         if let Some(selected_feed_id) = &self.selected_feed {
             self.articles
                 .iter()
@@ -529,13 +592,15 @@ impl RssApp {
     }
 
     fn add_feed_from_input(&mut self) {
+        // ===
+        // Ajoute un flux saisi manuellement (HTTPS requis) et rafraîchit.
+        // ===
         let title_owned = self.new_feed_title.trim().to_string();
         let url_owned = self.new_feed_url.trim().to_string();
         if url_owned.is_empty() {
             self.add_feedback = Some((false, "URL invalide".to_string()));
             return;
         }
-        // Exiger HTTPS
         if let Ok(parsed) = Url::parse(&url_owned) {
             if parsed.scheme() != "https" {
                 self.add_feedback =
@@ -558,10 +623,8 @@ impl RssApp {
             url: url_owned.clone(),
         };
 
-        // Persist the feed
         self.runtime
             .block_on(self.data_api.add_feed(descriptor.clone()));
-        // Trigger an immediate refresh for the newly added feed
         let events = self.runtime.block_on(async {
             poll_once(
                 &[descriptor],
@@ -589,18 +652,23 @@ impl RssApp {
         if !title_owned.is_empty() {
             self.add_feedback = Some((true, "Ajouté.".to_string()));
         } else {
-            // Ajout accepté mais titre vide: on n’affiche pas le succès demandé par le cahier des charges
             self.add_feedback = None;
         }
     }
 
     fn draw_left_panel(&mut self, ctx: &egui::Context) {
+        // ===
+        //
+        //
+        // Panneau gauche: ajout/recherche de flux, discover, paramètres, liste des flux.
+        //
+        //
+        // ===
         egui::SidePanel::left("feeds_panel")
             .min_width(self.config.ui.left_panel_width.clamp(200.0, 500.0))
             .max_width(500.0)
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                    // Section d'ajout de flux
                     ui.group(|group| {
                         group.vertical(|ui| {
                             ui.label(
@@ -640,10 +708,8 @@ impl RssApp {
 
                     ui.add_space(10.0);
 
-                    // Discover: bouton simple qui ouvre la vue principale Discover
                     ui.group(|group| {
                         group.vertical(|ui| {
-                            // Bouton plein largeur avec emoji (emoji supporté via polices installées au démarrage)
                             let w = ui.available_width();
                             let btn =
                                 egui::Button::new(egui::RichText::new("🔎 Discover").strong());
@@ -664,7 +730,6 @@ impl RssApp {
 
                     ui.add_space(6.0);
 
-                    // Accès Paramètres
                     ui.group(|group| {
                         group.vertical(|ui| {
                             let w = ui.available_width();
@@ -679,7 +744,6 @@ impl RssApp {
 
                     ui.add_space(10.0);
 
-                    // Section de recherche des flux
                     ui.group(|group| {
                         group.vertical(|ui| {
                             ui.label(
@@ -694,7 +758,6 @@ impl RssApp {
 
                     ui.add_space(10.0);
 
-                    // Liste des flux
                     ui.group(|group| {
                         group.vertical(|ui| {
                             ui.horizontal(|ui| {
@@ -702,7 +765,6 @@ impl RssApp {
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        // Rafraîchir tous les flux
                                         if ui
                                             .small_button("⟳")
                                             .on_hover_text("Rafraîchir tous les flux")
@@ -727,7 +789,6 @@ impl RssApp {
                                                         self.data_api
                                                             .upsert_articles(&feed_id, to_persist),
                                                     );
-                                                    // Remplacer les articles de ce flux
                                                     self.articles.retain(|a| a.feed_id != feed_id);
                                                     self.articles.append(&mut entries);
                                                 }
@@ -740,11 +801,9 @@ impl RssApp {
                                             }
                                         }
 
-                                        // Afficher tous les flux (agrégé)
                                         if ui.small_button("Tous").clicked() {
                                             self.selected_feed = None;
                                             self.current_view = AppView::ArticleList;
-                                            // Recharger l'agrégat depuis la persistance
                                             let all = self
                                                 .runtime
                                                 .block_on(self.data_api.list_all_articles());
@@ -778,12 +837,10 @@ impl RssApp {
                                             if response.clicked() {
                                                 self.selected_feed = Some(feed.id.clone());
                                                 self.current_view = AppView::ArticleList;
-                                                // Charger d'abord les articles persistés pour ce flux
                                                 let persisted = self.runtime.block_on(
                                                     self.data_api.list_articles(&feed.id),
                                                 );
                                                 if !persisted.is_empty() {
-                                                    // Remplacer les articles en mémoire pour ce flux par le cache
                                                     self.articles.retain(|a| a.feed_id != feed.id);
                                                     self.articles.extend(persisted);
                                                     self.articles.sort_by(|a, b| {
@@ -793,7 +850,6 @@ impl RssApp {
                                                         self.config.ui.articles_per_page.max(1),
                                                     );
                                                 } else {
-                                                    // Si aucun cache, tenter un fetch immédiat
                                                     let fd = feed.clone();
                                                     let events = self.runtime.block_on(async {
                                                         poll_once(
@@ -830,7 +886,6 @@ impl RssApp {
                                             ui.with_layout(
                                                 egui::Layout::right_to_left(egui::Align::Center),
                                                 |ui| {
-                                                    // Supprimer le flux
                                                     if ui
                                                         .small_button("🗑")
                                                         .on_hover_text("Supprimer ce flux")
@@ -841,7 +896,6 @@ impl RssApp {
                                                         runtime.block_on(
                                                             self.data_api.remove_feed(&feed_id),
                                                         );
-                                                        // Retirer les articles du flux supprimé
                                                         self.articles
                                                             .retain(|a| a.feed_id != feed.id);
                                                         if self.selected_feed.as_ref()
@@ -851,7 +905,6 @@ impl RssApp {
                                                         }
                                                     }
 
-                                                    // Rafraîchir le flux
                                                     if ui
                                                         .small_button("⟳")
                                                         .on_hover_text("Rafraîchir ce flux")
@@ -878,7 +931,6 @@ impl RssApp {
                                                                     &feed_id, to_persist,
                                                                 ),
                                                             );
-                                                            // Remplacer les articles de ce flux dans la vue
                                                             self.articles
                                                                 .retain(|a| a.feed_id != feed_id);
                                                             self.articles.append(&mut entries);
@@ -910,6 +962,13 @@ impl RssApp {
     }
 
     fn draw_main_content(&mut self, ctx: &egui::Context) {
+        // ===
+        //
+        //
+        // Contenu central: route vers la vue courante.
+        //
+        //
+        // ===
         egui::CentralPanel::default().show(ctx, |ui| match &self.current_view {
             AppView::ArticleList => self.draw_article_list(ui),
             AppView::ArticleDetail(article) => self.draw_article_detail(ui, (**article).clone()),
@@ -920,6 +979,9 @@ impl RssApp {
     }
 
     fn draw_article_list(&mut self, ui: &mut egui::Ui) {
+        // ===
+        // Liste/agrégat d’articles avec actions rapides.
+        // ===
         ui.horizontal(|ui| {
             ui.heading(egui::RichText::new("📰 Articles RSS").size(18.0));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -971,25 +1033,20 @@ impl RssApp {
                     return;
                 }
 
-                // Laisser un léger espace avant la première carte pour éviter un effet d'écrasement sous l'entête
                 ui.add_space(4.0);
 
                 for article in articles {
-                    // Filtre "Non lus" si activé (if collapsé)
                     if self.show_unread_only
                         && self.runtime.block_on(self.data_api.is_read(&article))
                     {
                         continue;
                     }
                     egui::Frame::group(ui.style()).show(ui, |ui| {
-                        // Assurer une largeur pleine et une hauteur minimale pour homogénéiser la première carte
                         ui.set_width(ui.available_width());
                         ui.set_min_height(128.0);
                         ui.vertical(|ui| {
-                            // État de lecture
                             let is_read = self.runtime.block_on(self.data_api.is_read(&article));
 
-                            // Titre de l'article (style selon lu/non-lu)
                             let title_text = if is_read {
                                 egui::RichText::new(&article.title)
                                     .weak()
@@ -1012,7 +1069,6 @@ impl RssApp {
 
                             ui.add_space(5.0);
 
-                            // Informations sur l'article
                             ui.horizontal_wrapped(|ui| {
                                 if let Some(author) = &article.author {
                                     ui.label(
@@ -1047,7 +1103,6 @@ impl RssApp {
                             ui.add_space(3.0);
 
                             if self.config.ui.show_article_preview {
-                                // Aperçu de contenu (plus détaillé)
                                 let preview_text = if let Some(html) = &article.content_html {
                                     html2text::from_read(html.as_bytes(), 100)
                                 } else if let Some(summary) = &article.summary {
@@ -1055,7 +1110,6 @@ impl RssApp {
                                 } else {
                                     String::new()
                                 };
-                                // Tronquer sans couper au milieu d'un caractère Unicode
                                 let preview_trunc = {
                                     let max_chars = 300usize;
                                     if preview_text.chars().count() > max_chars {
@@ -1076,7 +1130,6 @@ impl RssApp {
 
                             ui.add_space(5.0);
 
-                            // Boutons d'action
                             ui.horizontal(|ui| {
                                 if ui.small_button("📖 Lire").clicked() {
                                     self.current_view =
@@ -1100,21 +1153,18 @@ impl RssApp {
                                 }
                             });
 
-                            // Source du flux (agrégé uniquement)
                             if aggregated_view {
                                 let feed_name = feed_title_map
                                     .get(&article.feed_id)
                                     .cloned()
                                     .unwrap_or_else(|| "Flux inconnu".to_string());
                                 let color = color_for_feed(&article.feed_id);
-                                // Réserver une ligne fixe en bas pour éviter les variations de hauteur
                                 let bar_h = 16.0;
                                 let width = ui.available_width();
                                 ui.allocate_ui_with_layout(
                                     egui::vec2(width, bar_h),
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        // Libellé tronqué pour éviter le retour à la ligne
                                         let max_w = 180.0;
                                         let label = egui::Label::new(
                                             egui::RichText::new(feed_name).color(color).size(12.0),
@@ -1133,6 +1183,9 @@ impl RssApp {
     }
 
     fn draw_article_detail(&mut self, ui: &mut egui::Ui, article: FeedEntry) {
+        // ===
+        // Détail d’un article (texte simplifié) et actions.
+        // ===
         ui.horizontal(|ui| {
             if ui.button("← Retour").clicked() {
                 self.current_view = AppView::ArticleList;
@@ -1184,7 +1237,6 @@ impl RssApp {
 
                         ui.separator();
 
-                        // Contenu de l'article (préférence pour le HTML intégral si présent)
                         if let Some(html) = &article.content_html {
                             let text = html2text::from_read(html.as_bytes(), 100);
                             ui.label(egui::RichText::new(text).size(15.0));
@@ -1201,7 +1253,6 @@ impl RssApp {
 
                         ui.add_space(20.0);
 
-                        // Actions
                         ui.horizontal(|ui| {
                             if ui.button("Ouvrir dans le navigateur").clicked() {
                                 if let Err(e) = webbrowser::open(&article.url) {
@@ -1213,21 +1264,21 @@ impl RssApp {
                                 ui.output_mut(|o| o.copied_text = article.url.clone());
                             }
 
-                            // Aperçu intégré retiré: on s'appuie uniquement sur l'ouverture du lien dans le navigateur.
                         });
-
-                        // (Aperçu texte retiré)
+                        
                     });
                 });
             });
     }
 
     fn draw_settings(&mut self, ui: &mut egui::Ui) {
+        // ===
+        // Page Paramètres: thème, interface, flux.
+        // ===
         ui.heading(egui::RichText::new("⚙️ Paramètres").size(18.0));
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            // Section Thème
             ui.group(|ui| {
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new("🎨 Thème").strong().size(16.0));
@@ -1296,7 +1347,6 @@ impl RssApp {
 
             ui.add_space(10.0);
 
-            // Section Interface
             ui.group(|ui| {
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new("🖥️ Interface").strong().size(16.0));
@@ -1358,7 +1408,6 @@ impl RssApp {
 
             ui.add_space(10.0);
 
-            // Section Flux RSS
             ui.group(|ui| {
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new("📡 Flux RSS").strong().size(16.0));
@@ -1406,7 +1455,6 @@ impl RssApp {
 
             ui.add_space(20.0);
 
-            // Bouton utile
             ui.horizontal(|ui| {
                 if ui.button("🗂 Ouvrir dossier config").clicked() {
                     if let Ok(config_path) = rss_core::AppConfig::config_file_path() {
@@ -1427,6 +1475,9 @@ impl RssApp {
 }
 
 impl Drop for RssApp {
+    // ===
+    // Arrêt du poller à la fermeture de l’appli.
+    // ===
     fn drop(&mut self) {
         if let Some(handle) = self.poller.take() {
             let _ = self.runtime.block_on(handle.stop());
@@ -1435,6 +1486,9 @@ impl Drop for RssApp {
 }
 
 impl eframe::App for RssApp {
+    // ===
+    // Boucle UI: apply thème, consommer les updates, dessiner panneaux et contenu.
+    // ===
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.setup_dark_theme(ctx);
         self.refresh_updates();
