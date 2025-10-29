@@ -31,6 +31,10 @@ if url.scheme() != "https" {
   if !host_ok { return Err(PollError::UnsupportedScheme); }
 }
 ```
+Décryptage simple:
+- `#[cfg(not(test))]` signifie: on applique cette règle partout sauf dans les tests. Utile pour autoriser des URLs locales en tests.
+- `url.scheme()` récupère le schéma (http, https…). On exige `https` en production.
+- `matches!` vérifie que l’hôte est local. Si ce n’est pas le cas, on renvoie une erreur claire `UnsupportedScheme` qui sera loggée sans faire planter l’appli.
 
 ---
 
@@ -61,6 +65,9 @@ pub use feed::{add_feed, list_feeds, remove_feed, shared_feed_list};
 pub use poller::{poll_once, spawn_poller, Event, PollConfig, PollerHandle};
 pub use storage::SeenStore;
 ```
+Décryptage simple:
+- `pub mod` rend les modules visibles; `pub use` ré-exporte des types/fonctions pour une importation facile côté UI.
+- L’app (`rss-gui`) peut ainsi écrire `use rss_core::spawn_poller;` sans connaître l’arborescence interne.
 
 ---
 
@@ -89,6 +96,9 @@ pub enum PollError {
   #[error("feed too large: {0} bytes")] TooLarge(u64),
 }
 ```
+Décryptage simple:
+- Chaque variante représente une cause d’échec précise. `#[from]` permet la conversion automatique depuis une erreur tierce.
+- Les messages entre guillemets seront affichés tels quels dans les logs ou l’UI si besoin.
 
 ---
 
@@ -110,6 +120,9 @@ pub fn shared_feed_list(initial: Vec<FeedDescriptor>) -> SharedFeedList {
   Arc::new(RwLock::new(initial))
 }
 ```
+Décryptage simple:
+- `Arc<RwLock<_>>` = partage multi‑threads + plusieurs lecteurs ou un seul écrivain.
+- La liste des flux est donc sûre en concurrence (poller/GUI) avec peu de contention.
 
 ---
 
@@ -150,6 +163,10 @@ pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
   std::fs::write(config_path, config_json)?; Ok(())
 }
 ```
+Décryptage simple:
+- `dirs::config_dir()` retourne le dossier config de l’OS (ex: `~/.config` sous Linux).
+- On crée le sous‑dossier `readrss` au besoin et on y place `config.json` lisible par l’utilisateur.
+- `serde_json::to_string_pretty` produit un JSON facile à éditer à la main.
 
 ---
 
@@ -190,6 +207,10 @@ pub fn from_rss_item(feed_id: &str, item: &rss::Item) -> Self {
     published_at, guid: item.guid().map(|g| g.value().to_owned()), author, category, content_html, image_url }
 }
 ```
+Décryptage simple:
+- On tente d’abord `pub_date` (format RFC 2822) et on convertit la timezone vers UTC.
+- Métadonnées supplémentaires via extensions (Dublin Core, content:encoded, enclosure image).
+- Les `Option<T>` évitent les `null`/paniques: si une info manque, on ne casse rien.
 
 ---
 
@@ -200,6 +221,8 @@ Chemin: `rss-core/src/data.rs`
 Responsabilités:
 - Feeds: ajouter/supprimer/lister avec persistance (`feeds.json`).
 - Read‑state: marquer “lu” (`read_store.json`).
+Décryptage simple:
+- Écriture atomique: on écrit d’abord un fichier temporaire `.tmp`, puis on le renomme. En cas de coupure, on évite un fichier final corrompu.
 - Articles: cache par feed (`articles_store.json`), déduplication + tri + truncate.
 
 Contrats fonctionnels:
@@ -213,6 +236,9 @@ Extrait (écriture atomique):
 ```rust
 // rss-core/src/data.rs
 async fn persist_feeds(&self) {
+Décryptage simple:
+- `existing` garde les clés déjà présentes pour éviter les doublons.
+- Tri décroissant par date; on tronque pour maîtriser la taille disque/mémoire.
   let feeds = list_feeds(&self.feeds).await;
   if let Ok(bytes) = serde_json::to_vec_pretty(&feeds) {
       if let Some(parent) = self.feeds_path.parent() { let _ = tokio::fs::create_dir_all(parent).await; }
@@ -261,6 +287,9 @@ pub async fn is_new_and_mark(&self, entry: &FeedEntry) -> bool {
   }
 }
 ```
+Décryptage simple:
+- “Vu ?” Si non: on ajoute la clé et on persiste. Si oui: on ne republie pas l’article à l’UI.
+- La persistance est asynchrone; en cas d’échec, on logge mais on ne bloque pas l’UI.
 
 ---
 
@@ -291,6 +320,9 @@ while let Some(chunk) = stream.next().await {
   bytes_buf.extend_from_slice(&chunk);
 }
 ```
+Décryptage simple:
+- On lit par morceaux (streaming) pour ne pas exploser la mémoire.
+- Double barrière: longueur annoncée ET vérification cumulée en cours de lecture.
 
 ---
 
@@ -318,6 +350,8 @@ let entries = channel.items().iter().map(|item| {
     entry
 }).collect();
 ```
+Décryptage simple:
+- Certains flux n’ont pas de date fiable; on complète raisonnablement par “maintenant” pour garantir un tri cohérent.
 
 ---
 
@@ -342,6 +376,8 @@ Définition et valeurs par défaut:
 pub struct PollConfig { pub interval: Duration, pub request_timeout: Duration, pub max_retries: usize, pub retry_backoff_ms: u64 }
 impl Default for PollConfig { fn default() -> Self { Self { interval: Duration::from_secs(300), request_timeout: Duration::from_secs(15), max_retries: 3, retry_backoff_ms: 500 } } }
 ```
+Décryptage simple:
+- Des valeurs prudentes par défaut: 5 minutes d’intervalle, 15 s de timeout, 3 tentatives, backoff base 500 ms.
 
 ---
 
@@ -366,6 +402,9 @@ pub fn spawn_poller(/*…*/) -> PollerHandle {
   PollerHandle { cancel_tx, join }
 }
 ```
+Décryptage simple:
+- `broadcast` sert à signaler l’arrêt à la tâche. `join` attend la fin propre de la tâche (utile à la fermeture).
+- `select!` écoute soit l’arrêt, soit l’horloge périodique.
 
 ---
 
@@ -410,6 +449,9 @@ fn load_poll_config() -> PollConfig {
     max_retries: app_cfg.feeds.retry_attempts.max(1) as usize, ..PollConfig::default() }
 }
 ```
+Décryptage simple:
+- On limite les redirections HTTP (sécurité/perf) et on définit un user‑agent clair.
+- `PollConfig` dérive des préférences utilisateur (UI ↔ runtime alignés).
 
 ---
 
@@ -447,6 +489,8 @@ style.visuals.selection.bg_fill = Color32::from_rgba_unmultiplied(0,122,204,60);
 style.spacing.item_spacing = egui::vec2(10.0, 8.0);
 style.visuals.widgets.noninteractive.rounding = Rounding::same(3.0);
 ```
+Décryptage simple:
+- On améliore la lisibilité: états visuels cohérents (hover/active/sélection), espacements confortables, arrondis discrets.
 
 ---
 
@@ -467,6 +511,9 @@ self.runtime.block_on(self.data_api.add_feed(descriptor.clone()));
 let events = self.runtime.block_on(async { poll_once(&[descriptor], &self.poll_config, &self.client, &self.seen_store).await });
 for evt in events { if let Event::NewArticles(feed_id, mut entries) = evt { self.runtime.block_on(self.data_api.upsert_articles(&feed_id, entries.clone())); self.articles.append(&mut entries); } }
 ```
+Décryptage simple:
+- Après ajout, on force un “mini polling” du seul nouveau flux (`poll_once`).
+- On persiste immédiatement les articles et on les affiche triés dans l’UI.
 
 ---
 
@@ -494,6 +541,9 @@ if self.show_unread_only && self.runtime.block_on(self.data_api.is_read(&article
 let preview_text = if let Some(html) = &article.content_html { html2text::from_read(html.as_bytes(), 100) }
                    else if let Some(summary) = &article.summary { html2text::from_read(summary.as_bytes(), 100) } else { String::new() };
 ```
+Décryptage simple:
+- Le filtre “Non lus” interroge l’état persistant (`DataApi.is_read`).
+- `html2text` rend les aperçus lisibles et sûrs (texte brut, pas de scripts).
 
 ---
 
@@ -509,6 +559,9 @@ Extrait:
 if ui.button("Ouvrir dans le navigateur").clicked() { let _ = webbrowser::open(&article.url); }
 if ui.button("Copier le lien").clicked() { ui.output_mut(|o| o.copied_text = article.url.clone()); }
 ```
+Décryptage simple:
+- On délègue l’affichage enrichi au navigateur par défaut; l’UI reste simple et sûre.
+- Copier le lien utilise le presse‑papiers géré par egui.
 
 ---
 
@@ -524,6 +577,8 @@ if ui.color_edit_button_rgb(&mut bg).changed() {
   let _ = self.config.save();
 }
 ```
+Décryptage simple:
+- Tout changement UI est immédiatement sauvegardé en JSON — pas de bouton “Enregistrer”.
 
 ---
 
@@ -545,6 +600,8 @@ while let Ok(evt) = self.updates.try_recv() {
   }
 }
 ```
+Décryptage simple:
+- `try_recv` lit sans bloquer la boucle de rendu; l’UI reste fluide même si le poller publie beaucoup.
 
 ---
 
@@ -559,6 +616,8 @@ Extrait:
 let mut ticker = tokio::time::interval(config.interval);
 ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 ```
+Décryptage simple:
+- Si l’app a “raté” un tick (PC occupé/suspendu), on n’enchaîne pas des dizaines de rattrapages.
 
 ---
 
@@ -577,6 +636,8 @@ Extrait (logging côté poller):
 ```rust
 warn!(feed = %feed.url, error = %err, "failed to fetch feed");
 ```
+Décryptage simple:
+- `tracing::warn!` enregistre un message structuré: on voit l’URL du flux et l’erreur précise.
 
 ---
 
@@ -592,6 +653,8 @@ Extrait (chemin config, côté GUI):
 ```rust
 fn config_dir() -> PathBuf { let mut dir = dirs::config_dir().unwrap_or_else(|| std::env::current_dir().unwrap()); dir.push("readrss"); dir }
 ```
+Décryptage simple:
+- Si `dirs::config_dir()` n’est pas dispo (cas rare), on utilise le répertoire courant — l’app reste utilisable.
 
 ---
 
@@ -612,6 +675,8 @@ pub async fn poll_once(feeds: &[FeedDescriptor], cfg: &PollConfig, client: &Clie
   }} out
 }
 ```
+Décryptage simple:
+- Utile pour un “rafraîchir maintenant” sans lancer le poller complet: un tour, des évènements, terminé.
 
 ---
 
@@ -627,6 +692,8 @@ Extrait (workflow):
 - name: Build .deb
   run: cargo deb -p rss-gui --no-build
 ```
+Décryptage simple:
+- `--no-build` réutilise le binaire déjà compilé (évite l’erreur de double `--release`).
 
 ---
 
@@ -643,6 +710,8 @@ Extrait (refus HTTP côté UI aussi):
 ```rust
 if parsed.scheme() != "https" { self.add_feedback = Some((false, "Seules les URLs HTTPS sont autorisées".to_string())); return; }
 ```
+Décryptage simple:
+- Filtre côté UI également: cohérence d’expérience (on bloque tôt, avec message clair).
 
 ---
 
@@ -660,6 +729,48 @@ let mut bytes_buf = bytes::BytesMut::new();
 // … remplissage …
 let bytes = bytes_buf.freeze();
 ```
+Décryptage simple:
+- `freeze()` convertit le buffer mutable en `Bytes` immuable sans recopier les données — performant et sûr.
+
+---
+
+## Scénarios fil rouge (du clic utilisateur au rendu)
+
+### Scénario 1 — J’ajoute un flux et je vois des articles
+
+1) UI: l’utilisateur saisit l’URL et clique “Ajouter”.
+  - Validation: refus des URLs non‑HTTPS; feedback immédiat.
+2) Données: `DataApi.add_feed` persiste le flux dans `feeds.json`.
+3) Rafraîchissement: l’app appelle `poll_once` pour ce flux uniquement.
+  - Réseau: `reqwest` télécharge le flux en streaming (≤ 10 MiB, timeout).
+  - Parsing: RSS, sinon fallback Atom.
+  - Déduplication: `SeenStore.is_new_and_mark` ne garde que les nouveaux.
+4) Persistance: `DataApi.upsert_articles` fusionne, trie et sauve `articles_store.json`.
+5) UI: réception `Event::NewArticles` → ajout dans la liste, tri par date, affichage.
+
+Résultat tangible: l’utilisateur voit des articles quelques secondes après l’ajout.
+
+### Scénario 2 — Je lance l’application le matin
+
+1) Démarrage: `AppConfig::load` charge les préférences; `DataApi::load_from_dir` restaure feeds, “lus” et cache d’articles.
+2) Services: on crée le client HTTP; `load_poll_config` dérive `PollConfig` depuis `AppConfig`.
+3) Poller: `spawn_poller` démarre la tâche périodique (intervalle choisi par l’utilisateur).
+4) Première passe: à chaque tick, fetch des flux, déduplication, persistance; l’UI consomme les évènements sans bloquer.
+5) Utilisation: l’utilisateur ouvre un article (navigateur), marque “tout lu”, ajuste le thème; tout est sauvegardé immédiatement.
+
+---
+
+## Glossaire (rapide et utile)
+
+- Arc<T>: compteur de références thread‑safe; partage d’un même objet entre threads.
+- RwLock<T>: verrou lecture/écriture (plusieurs lecteurs OU un écrivain).
+- async/await: style d’écriture pour code non bloquant; garde l’UI fluide.
+- mpsc/broadcast: canaux asynchrones (point‑à‑point / diffusion à plusieurs).
+- serde/serde_json: sérialisation/désérialisation Rust ↔ JSON.
+- reqwest: client HTTP asynchrone, ici avec rustls.
+- egui/eframe: toolkit UI immédiat sur wgpu (rendu GPU), portable.
+- backoff exponentiel: on attend de plus en plus longtemps entre les tentatives après un échec.
+- écriture atomique: écriture dans un fichier temporaire puis renommage, pour éviter les données corrompues.
 
 ---
 
