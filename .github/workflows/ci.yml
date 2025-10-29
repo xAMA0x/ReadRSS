@@ -18,20 +18,14 @@ jobs:
         with:
           components: clippy
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
 
       - name: Clippy (deny warnings)
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --all --locked --all-targets
+        run: cargo test --workspace --locked --all-targets
 
   audit:
     runs-on: ubuntu-latest
@@ -43,45 +37,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit
+        run: cargo install cargo-audit --locked
 
       - name: Audit (respect .cargo/audit.toml)
         run: cargo audit
-name: CI
-
-on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # Installe Rust (stable) + composants
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-          # targets: wasm32-unknown-unknown  # si besoin
-
-      # Cache cargo (optionnel mais recommandé)
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Cargo fmt
-        run: cargo fmt --all -- --check
-      - name: Cargo clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Cargo test
-        run: cargo test --workspace --all-features
-      - name: Cargo build
-        run: cargo build --workspace --release
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-      - name: Security audit (cargo-audit)
-        run: cargo audit --deny warnings
-      - name: Install cargo-deny
-        run: cargo install cargo-deny --locked
-      - name: Dependency policy (cargo-deny)
-        run: cargo deny check --all-features
