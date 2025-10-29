@@ -1,6 +1,6 @@
 # ReadRSS
 
-Lecteur RSS minimal et rapide. Rien d’inutile.
+Lecteur RSS minimal et rapide.
 
 ## Utiliser
 
