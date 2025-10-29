@@ -2,12 +2,12 @@ use std::path::Path;
 use std::time::Duration;
 
 use chrono::Utc;
-use reqwest::Client;
-use url::Url;
 use futures_util::StreamExt;
+use reqwest::Client;
 use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
+use url::Url;
 
 use crate::error::PollError;
 use crate::feed::{FeedDescriptor, FeedEntry, SharedFeedList};
