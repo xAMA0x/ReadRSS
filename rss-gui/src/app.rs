@@ -25,42 +25,134 @@ struct RecCategory {
 
 fn recommended_categories() -> &'static [RecCategory] {
     const TECH: &[RecFeed] = &[
-        RecFeed { title: "Ars Technica", url: "https://arstechnica.com/feed/", desc: "Actualités et analyses high‑tech, science et société." },
-        RecFeed { title: "TechCrunch", url: "https://techcrunch.com/feed/", desc: "Startups, produits et innovations du monde de la tech." },
-        RecFeed { title: "The Register", url: "https://www.theregister.com/headlines.atom", desc: "IT, logiciels, matériel et industrie (ton décalé)." },
-        RecFeed { title: "Numerama", url: "https://www.numerama.com/feed/", desc: "Culture numérique, société, environnement et science (FR)." },
-        RecFeed { title: "Korben", url: "https://korben.info/feed", desc: "Veille tech, tips et découvertes (FR)." },
+        RecFeed {
+            title: "Ars Technica",
+            url: "https://arstechnica.com/feed/",
+            desc: "Actualités et analyses high‑tech, science et société.",
+        },
+        RecFeed {
+            title: "TechCrunch",
+            url: "https://techcrunch.com/feed/",
+            desc: "Startups, produits et innovations du monde de la tech.",
+        },
+        RecFeed {
+            title: "The Register",
+            url: "https://www.theregister.com/headlines.atom",
+            desc: "IT, logiciels, matériel et industrie (ton décalé).",
+        },
+        RecFeed {
+            title: "Numerama",
+            url: "https://www.numerama.com/feed/",
+            desc: "Culture numérique, société, environnement et science (FR).",
+        },
+        RecFeed {
+            title: "Korben",
+            url: "https://korben.info/feed",
+            desc: "Veille tech, tips et découvertes (FR).",
+        },
     ];
 
     const DEV: &[RecFeed] = &[
-        RecFeed { title: "Rust Blog", url: "https://blog.rust-lang.org/feed.xml", desc: "Annonces officielles du langage Rust." },
-        RecFeed { title: "GitHub Blog", url: "https://github.blog/feed/", desc: "Actualités GitHub, produits et écosystème open‑source." },
-        RecFeed { title: "Stack Overflow Blog", url: "https://stackoverflow.blog/feed/", desc: "Ingénierie, communauté et productivité." },
-        RecFeed { title: "Real Python", url: "https://realpython.com/atom.xml", desc: "Tutoriels Python et bonnes pratiques." },
-        RecFeed { title: "dev.to", url: "https://dev.to/feed", desc: "Articles communautaires sur le dev et les outils." },
+        RecFeed {
+            title: "Rust Blog",
+            url: "https://blog.rust-lang.org/feed.xml",
+            desc: "Annonces officielles du langage Rust.",
+        },
+        RecFeed {
+            title: "GitHub Blog",
+            url: "https://github.blog/feed/",
+            desc: "Actualités GitHub, produits et écosystème open‑source.",
+        },
+        RecFeed {
+            title: "Stack Overflow Blog",
+            url: "https://stackoverflow.blog/feed/",
+            desc: "Ingénierie, communauté et productivité.",
+        },
+        RecFeed {
+            title: "Real Python",
+            url: "https://realpython.com/atom.xml",
+            desc: "Tutoriels Python et bonnes pratiques.",
+        },
+        RecFeed {
+            title: "dev.to",
+            url: "https://dev.to/feed",
+            desc: "Articles communautaires sur le dev et les outils.",
+        },
     ];
 
     const SCIENCE: &[RecFeed] = &[
-        RecFeed { title: "NASA News", url: "https://www.nasa.gov/rss/dyn/breaking_news.rss", desc: "Dernières nouvelles de la NASA." },
-        RecFeed { title: "ScienceDaily (All)", url: "https://www.sciencedaily.com/rss/all.xml", desc: "Sélection d’articles de vulgarisation scientifique." },
-        RecFeed { title: "Nature – Latest", url: "https://www.nature.com/nature.rss", desc: "Publications et actualités de la revue Nature." },
-        RecFeed { title: "Quanta Magazine", url: "https://api.quantamagazine.org/feed/", desc: "Maths, physique, informatique et biologie théorique." },
-        RecFeed { title: "MIT News", url: "https://news.mit.edu/rss/topic/engineering", desc: "Recherches et innovations du MIT (ingénierie)." },
+        RecFeed {
+            title: "NASA News",
+            url: "https://www.nasa.gov/rss/dyn/breaking_news.rss",
+            desc: "Dernières nouvelles de la NASA.",
+        },
+        RecFeed {
+            title: "ScienceDaily (All)",
+            url: "https://www.sciencedaily.com/rss/all.xml",
+            desc: "Sélection d’articles de vulgarisation scientifique.",
+        },
+        RecFeed {
+            title: "Nature – Latest",
+            url: "https://www.nature.com/nature.rss",
+            desc: "Publications et actualités de la revue Nature.",
+        },
+        RecFeed {
+            title: "Quanta Magazine",
+            url: "https://api.quantamagazine.org/feed/",
+            desc: "Maths, physique, informatique et biologie théorique.",
+        },
+        RecFeed {
+            title: "MIT News",
+            url: "https://news.mit.edu/rss/topic/engineering",
+            desc: "Recherches et innovations du MIT (ingénierie).",
+        },
     ];
 
     const ACTU_FR: &[RecFeed] = &[
-        RecFeed { title: "Le Monde – Une", url: "https://www.lemonde.fr/rss/une.xml", desc: "Sélection des principaux titres du Monde (FR)." },
-        RecFeed { title: "France 24", url: "https://www.france24.com/fr/rss", desc: "Info internationale en continu (FR)." },
-        RecFeed { title: "Le Figaro – International", url: "https://www.lefigaro.fr/rss/figaro_international.xml", desc: "Actualité internationale (FR)." },
-        RecFeed { title: "ZDNet France", url: "https://www.zdnet.fr/feeds/rss/actualites/", desc: "Technologies et entreprises (FR)." },
-        RecFeed { title: "01net", url: "https://www.01net.com/feed/", desc: "High-tech, tests et dossiers (FR)." },
+        RecFeed {
+            title: "Le Monde – Une",
+            url: "https://www.lemonde.fr/rss/une.xml",
+            desc: "Sélection des principaux titres du Monde (FR).",
+        },
+        RecFeed {
+            title: "France 24",
+            url: "https://www.france24.com/fr/rss",
+            desc: "Info internationale en continu (FR).",
+        },
+        RecFeed {
+            title: "Le Figaro – International",
+            url: "https://www.lefigaro.fr/rss/figaro_international.xml",
+            desc: "Actualité internationale (FR).",
+        },
+        RecFeed {
+            title: "ZDNet France",
+            url: "https://www.zdnet.fr/feeds/rss/actualites/",
+            desc: "Technologies et entreprises (FR).",
+        },
+        RecFeed {
+            title: "01net",
+            url: "https://www.01net.com/feed/",
+            desc: "High-tech, tests et dossiers (FR).",
+        },
     ];
 
     const CATS: &[RecCategory] = &[
-        RecCategory { name: "Technologie", feeds: TECH },
-        RecCategory { name: "Programmation", feeds: DEV },
-        RecCategory { name: "Science", feeds: SCIENCE },
-        RecCategory { name: "Actualités (FR)", feeds: ACTU_FR },
+        RecCategory {
+            name: "Technologie",
+            feeds: TECH,
+        },
+        RecCategory {
+            name: "Programmation",
+            feeds: DEV,
+        },
+        RecCategory {
+            name: "Science",
+            feeds: SCIENCE,
+        },
+        RecCategory {
+            name: "Actualités (FR)",
+            feeds: ACTU_FR,
+        },
     ];
     CATS
 }
@@ -192,12 +284,22 @@ impl RssApp {
                             g.vertical(|ui| {
                                 let btn = ui.add_sized(
                                     egui::vec2(200.0, 90.0),
-                                    egui::Button::new(egui::RichText::new(cat.name).strong().size(16.0)),
+                                    egui::Button::new(
+                                        egui::RichText::new(cat.name).strong().size(16.0),
+                                    ),
                                 );
                                 if btn.clicked() {
-                                    self.current_view = AppView::DiscoverCategory(cat.name.to_string());
+                                    self.current_view =
+                                        AppView::DiscoverCategory(cat.name.to_string());
                                 }
-                                ui.label(egui::RichText::new(format!("Top {} flux", cat.feeds.len().min(5))).weak().size(12.0));
+                                ui.label(
+                                    egui::RichText::new(format!(
+                                        "Top {} flux",
+                                        cat.feeds.len().min(5)
+                                    ))
+                                    .weak()
+                                    .size(12.0),
+                                );
                             });
                         });
                     } else {
@@ -221,7 +323,9 @@ impl RssApp {
         });
         ui.separator();
 
-        let cat = recommended_categories().iter().find(|c| c.name == category_name);
+        let cat = recommended_categories()
+            .iter()
+            .find(|c| c.name == category_name);
         if let Some(cat) = cat {
             let feeds = &cat.feeds[..cat.feeds.len().min(5)];
             for rf in feeds {
@@ -229,13 +333,17 @@ impl RssApp {
                     g.vertical(|ui| {
                         ui.horizontal(|ui| {
                             ui.label(egui::RichText::new(rf.title).strong().size(16.0));
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui.small_button("Suivre").clicked() {
-                                    self.follow_recommended(rf.title, rf.url);
-                                }
-                            });
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui.small_button("Suivre").clicked() {
+                                        self.follow_recommended(rf.title, rf.url);
+                                    }
+                                },
+                            );
                         });
-                        ui.label(egui::RichText::new(rf.desc).weak().size(13.0)).on_hover_text(rf.url);
+                        ui.label(egui::RichText::new(rf.desc).weak().size(13.0))
+                            .on_hover_text(rf.url);
                     });
                 });
                 ui.add_space(6.0);
@@ -430,7 +538,8 @@ impl RssApp {
         // Exiger HTTPS
         if let Ok(parsed) = Url::parse(&url_owned) {
             if parsed.scheme() != "https" {
-                self.add_feedback = Some((false, "Seules les URLs HTTPS sont autorisées".to_string()));
+                self.add_feedback =
+                    Some((false, "Seules les URLs HTTPS sont autorisées".to_string()));
                 return;
             }
         } else {
@@ -536,13 +645,18 @@ impl RssApp {
                         group.vertical(|ui| {
                             // Bouton plein largeur avec emoji (emoji supporté via polices installées au démarrage)
                             let w = ui.available_width();
-                            let btn = egui::Button::new(egui::RichText::new("🔎 Discover").strong());
+                            let btn =
+                                egui::Button::new(egui::RichText::new("🔎 Discover").strong());
                             if ui.add_sized(egui::vec2(w, 28.0), btn).clicked() {
                                 self.current_view = AppView::DiscoverHome;
                                 self.selected_feed = None;
                             }
                             if let Some((ok, msg)) = &self.discover_feedback {
-                                let color = if *ok { Color32::from_rgb(67, 160, 71) } else { Color32::from_rgb(229,57,53) };
+                                let color = if *ok {
+                                    Color32::from_rgb(67, 160, 71)
+                                } else {
+                                    Color32::from_rgb(229, 57, 53)
+                                };
                                 ui.label(egui::RichText::new(msg.clone()).color(color).size(13.0));
                             }
                         });
@@ -554,7 +668,8 @@ impl RssApp {
                     ui.group(|group| {
                         group.vertical(|ui| {
                             let w = ui.available_width();
-                            let btn = egui::Button::new(egui::RichText::new("⚙️ Paramètres").strong());
+                            let btn =
+                                egui::Button::new(egui::RichText::new("⚙️ Paramètres").strong());
                             if ui.add_sized(egui::vec2(w, 28.0), btn).clicked() {
                                 self.current_view = AppView::Settings;
                                 self.selected_feed = None;
@@ -588,22 +703,40 @@ impl RssApp {
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
                                         // Rafraîchir tous les flux
-                                        if ui.small_button("⟳").on_hover_text("Rafraîchir tous les flux").clicked() {
+                                        if ui
+                                            .small_button("⟳")
+                                            .on_hover_text("Rafraîchir tous les flux")
+                                            .clicked()
+                                        {
                                             let feeds = self.feeds_snapshot();
                                             if !feeds.is_empty() {
                                                 let events = self.runtime.block_on(async {
-                                                    poll_once(&feeds, &self.poll_config, &self.client, &self.seen_store).await
+                                                    poll_once(
+                                                        &feeds,
+                                                        &self.poll_config,
+                                                        &self.client,
+                                                        &self.seen_store,
+                                                    )
+                                                    .await
                                                 });
                                                 for evt in events {
-                                                    let Event::NewArticles(feed_id, mut entries) = evt;
+                                                    let Event::NewArticles(feed_id, mut entries) =
+                                                        evt;
                                                     let to_persist = entries.clone();
-                                                    self.runtime.block_on(self.data_api.upsert_articles(&feed_id, to_persist));
+                                                    self.runtime.block_on(
+                                                        self.data_api
+                                                            .upsert_articles(&feed_id, to_persist),
+                                                    );
                                                     // Remplacer les articles de ce flux
                                                     self.articles.retain(|a| a.feed_id != feed_id);
                                                     self.articles.append(&mut entries);
                                                 }
-                                                self.articles.sort_by(|a, b| b.published_at.cmp(&a.published_at));
-                                                self.articles.truncate(self.config.ui.articles_per_page.max(1));
+                                                self.articles.sort_by(|a, b| {
+                                                    b.published_at.cmp(&a.published_at)
+                                                });
+                                                self.articles.truncate(
+                                                    self.config.ui.articles_per_page.max(1),
+                                                );
                                             }
                                         }
 
@@ -612,10 +745,15 @@ impl RssApp {
                                             self.selected_feed = None;
                                             self.current_view = AppView::ArticleList;
                                             // Recharger l'agrégat depuis la persistance
-                                            let all = self.runtime.block_on(self.data_api.list_all_articles());
+                                            let all = self
+                                                .runtime
+                                                .block_on(self.data_api.list_all_articles());
                                             self.articles = all;
-                                            self.articles.sort_by(|a, b| b.published_at.cmp(&a.published_at));
-                                            self.articles.truncate(self.config.ui.articles_per_page.max(1));
+                                            self.articles.sort_by(|a, b| {
+                                                b.published_at.cmp(&a.published_at)
+                                            });
+                                            self.articles
+                                                .truncate(self.config.ui.articles_per_page.max(1));
                                         }
                                     },
                                 );
@@ -651,7 +789,9 @@ impl RssApp {
                                                     self.articles.sort_by(|a, b| {
                                                         b.published_at.cmp(&a.published_at)
                                                     });
-                                                    self.articles.truncate(self.config.ui.articles_per_page.max(1));
+                                                    self.articles.truncate(
+                                                        self.config.ui.articles_per_page.max(1),
+                                                    );
                                                 } else {
                                                     // Si aucun cache, tenter un fetch immédiat
                                                     let fd = feed.clone();
@@ -665,7 +805,10 @@ impl RssApp {
                                                         .await
                                                     });
                                                     for evt in events {
-                                                        let Event::NewArticles(feed_id, mut entries) = evt;
+                                                        let Event::NewArticles(
+                                                            feed_id,
+                                                            mut entries,
+                                                        ) = evt;
                                                         let to_persist = entries.clone();
                                                         self.runtime.block_on(
                                                             self.data_api.upsert_articles(
@@ -677,7 +820,9 @@ impl RssApp {
                                                     self.articles.sort_by(|a, b| {
                                                         b.published_at.cmp(&a.published_at)
                                                     });
-                                                    self.articles.truncate(self.config.ui.articles_per_page.max(1));
+                                                    self.articles.truncate(
+                                                        self.config.ui.articles_per_page.max(1),
+                                                    );
                                                 }
                                             }
                                             response.on_hover_text(&feed.url);
@@ -723,7 +868,10 @@ impl RssApp {
                                                             .await
                                                         });
                                                         for evt in events {
-                                                            let Event::NewArticles(feed_id, mut entries) = evt;
+                                                            let Event::NewArticles(
+                                                                feed_id,
+                                                                mut entries,
+                                                            ) = evt;
                                                             let to_persist = entries.clone();
                                                             self.runtime.block_on(
                                                                 self.data_api.upsert_articles(
@@ -731,15 +879,16 @@ impl RssApp {
                                                                 ),
                                                             );
                                                             // Remplacer les articles de ce flux dans la vue
-                                                            self.articles.retain(|a| {
-                                                                a.feed_id != feed_id
-                                                            });
+                                                            self.articles
+                                                                .retain(|a| a.feed_id != feed_id);
                                                             self.articles.append(&mut entries);
                                                         }
                                                         self.articles.sort_by(|a, b| {
                                                             b.published_at.cmp(&a.published_at)
                                                         });
-                                                        self.articles.truncate(self.config.ui.articles_per_page.max(1));
+                                                        self.articles.truncate(
+                                                            self.config.ui.articles_per_page.max(1),
+                                                        );
                                                     }
                                                 },
                                             );
@@ -856,7 +1005,8 @@ impl RssApp {
                             );
 
                             if title_response.clicked() {
-                                self.current_view = AppView::ArticleDetail(Box::new(article.clone()));
+                                self.current_view =
+                                    AppView::ArticleDetail(Box::new(article.clone()));
                                 self.runtime.block_on(self.data_api.mark_read(&article));
                             }
 
@@ -929,7 +1079,8 @@ impl RssApp {
                             // Boutons d'action
                             ui.horizontal(|ui| {
                                 if ui.small_button("📖 Lire").clicked() {
-                                    self.current_view = AppView::ArticleDetail(Box::new(article.clone()));
+                                    self.current_view =
+                                        AppView::ArticleDetail(Box::new(article.clone()));
                                     self.runtime.block_on(self.data_api.mark_read(&article));
                                 }
 
@@ -1070,7 +1221,7 @@ impl RssApp {
                 });
             });
     }
-    
+
     fn draw_settings(&mut self, ui: &mut egui::Ui) {
         ui.heading(egui::RichText::new("⚙️ Paramètres").size(18.0));
         ui.separator();
@@ -1133,7 +1284,10 @@ impl RssApp {
                         }
                     });
 
-                    if ui.button("🔄 Réinitialiser aux valeurs par défaut").clicked() {
+                    if ui
+                        .button("🔄 Réinitialiser aux valeurs par défaut")
+                        .clicked()
+                    {
                         self.config.theme = rss_core::ThemeConfig::default();
                         let _ = self.config.save();
                     }
@@ -1151,7 +1305,10 @@ impl RssApp {
                     ui.horizontal(|ui| {
                         ui.label("Taille de police:");
                         if ui
-                            .add(egui::Slider::new(&mut self.config.ui.font_size, 10.0..=24.0).suffix(" px"))
+                            .add(
+                                egui::Slider::new(&mut self.config.ui.font_size, 10.0..=24.0)
+                                    .suffix(" px"),
+                            )
                             .changed()
                         {
                             let _ = self.config.save();
@@ -1161,7 +1318,13 @@ impl RssApp {
                     ui.horizontal(|ui| {
                         ui.label("Largeur du panneau de gauche:");
                         if ui
-                            .add(egui::Slider::new(&mut self.config.ui.left_panel_width, 200.0..=500.0).suffix(" px"))
+                            .add(
+                                egui::Slider::new(
+                                    &mut self.config.ui.left_panel_width,
+                                    200.0..=500.0,
+                                )
+                                .suffix(" px"),
+                            )
                             .changed()
                         {
                             let _ = self.config.save();
@@ -1171,7 +1334,10 @@ impl RssApp {
                     ui.horizontal(|ui| {
                         ui.label("Articles par page:");
                         if ui
-                            .add(egui::Slider::new(&mut self.config.ui.articles_per_page, 10..=500))
+                            .add(egui::Slider::new(
+                                &mut self.config.ui.articles_per_page,
+                                10..=500,
+                            ))
                             .changed()
                         {
                             let _ = self.config.save();
@@ -1179,7 +1345,10 @@ impl RssApp {
                     });
 
                     if ui
-                        .checkbox(&mut self.config.ui.show_article_preview, "Afficher les aperçus d'articles")
+                        .checkbox(
+                            &mut self.config.ui.show_article_preview,
+                            "Afficher les aperçus d'articles",
+                        )
                         .changed()
                     {
                         let _ = self.config.save();
@@ -1197,22 +1366,40 @@ impl RssApp {
 
                     ui.horizontal(|ui| {
                         ui.label("Intervalle de mise à jour:");
-                        ui.add(egui::Slider::new(&mut self.config.feeds.update_interval_minutes, 1..=120).suffix(" min"));
+                        ui.add(
+                            egui::Slider::new(
+                                &mut self.config.feeds.update_interval_minutes,
+                                1..=120,
+                            )
+                            .suffix(" min"),
+                        );
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Articles max par flux:");
-                        ui.add(egui::Slider::new(&mut self.config.feeds.max_articles_per_feed, 10..=500));
+                        ui.add(egui::Slider::new(
+                            &mut self.config.feeds.max_articles_per_feed,
+                            10..=500,
+                        ));
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Timeout des requêtes:");
-                        ui.add(egui::Slider::new(&mut self.config.feeds.request_timeout_seconds, 5..=60).suffix(" sec"));
+                        ui.add(
+                            egui::Slider::new(
+                                &mut self.config.feeds.request_timeout_seconds,
+                                5..=60,
+                            )
+                            .suffix(" sec"),
+                        );
                     });
 
                     ui.horizontal(|ui| {
                         ui.label("Tentatives de réessai:");
-                        ui.add(egui::Slider::new(&mut self.config.feeds.retry_attempts, 1..=10));
+                        ui.add(egui::Slider::new(
+                            &mut self.config.feeds.retry_attempts,
+                            1..=10,
+                        ));
                     });
                 });
             });

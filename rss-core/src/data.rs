@@ -46,7 +46,9 @@ impl DataApi {
                         warn!(error = %e, path = %path.display(), "failed to parse JSON, trying tmp fallback");
                         let tmp = path.with_extension("json.tmp");
                         match tokio::fs::read(&tmp).await {
-                            Ok(tmp_bytes) => serde_json::from_slice::<T>(&tmp_bytes).unwrap_or_default(),
+                            Ok(tmp_bytes) => {
+                                serde_json::from_slice::<T>(&tmp_bytes).unwrap_or_default()
+                            }
                             Err(_) => Default::default(),
                         }
                     }

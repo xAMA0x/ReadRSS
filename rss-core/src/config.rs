@@ -83,12 +83,12 @@ impl Default for UiConfig {
 impl AppConfig {
     /// Récupère le chemin du fichier de configuration
     pub fn config_file_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
-        let config_dir = dirs::config_dir()
-            .ok_or("Impossible de trouver le dossier de configuration")?;
-        
+        let config_dir =
+            dirs::config_dir().ok_or("Impossible de trouver le dossier de configuration")?;
+
         let app_config_dir = config_dir.join("readrss");
         std::fs::create_dir_all(&app_config_dir)?;
-        
+
         Ok(app_config_dir.join("config.json"))
     }
 
@@ -101,7 +101,10 @@ impl AppConfig {
                 let default_config = Self::default();
                 // Essaie de sauvegarder la configuration par défaut
                 if let Err(save_err) = default_config.save() {
-                    eprintln!("Impossible de sauvegarder la configuration par défaut: {}", save_err);
+                    eprintln!(
+                        "Impossible de sauvegarder la configuration par défaut: {}",
+                        save_err
+                    );
                 }
                 default_config
             }
@@ -146,15 +149,27 @@ impl AppConfig {
 // Utilitaires pour convertir les couleurs
 impl ThemeConfig {
     pub fn background_color32(&self) -> egui::Color32 {
-        egui::Color32::from_rgb(self.background_color[0], self.background_color[1], self.background_color[2])
+        egui::Color32::from_rgb(
+            self.background_color[0],
+            self.background_color[1],
+            self.background_color[2],
+        )
     }
 
     pub fn panel_color32(&self) -> egui::Color32 {
-        egui::Color32::from_rgb(self.panel_color[0], self.panel_color[1], self.panel_color[2])
+        egui::Color32::from_rgb(
+            self.panel_color[0],
+            self.panel_color[1],
+            self.panel_color[2],
+        )
     }
 
     pub fn accent_color32(&self) -> egui::Color32 {
-        egui::Color32::from_rgb(self.accent_color[0], self.accent_color[1], self.accent_color[2])
+        egui::Color32::from_rgb(
+            self.accent_color[0],
+            self.accent_color[1],
+            self.accent_color[2],
+        )
     }
 
     pub fn text_color32(&self) -> egui::Color32 {
@@ -162,10 +177,18 @@ impl ThemeConfig {
     }
 
     pub fn secondary_text_color32(&self) -> egui::Color32 {
-        egui::Color32::from_rgb(self.secondary_text_color[0], self.secondary_text_color[1], self.secondary_text_color[2])
+        egui::Color32::from_rgb(
+            self.secondary_text_color[0],
+            self.secondary_text_color[1],
+            self.secondary_text_color[2],
+        )
     }
 
     pub fn border_color32(&self) -> egui::Color32 {
-        egui::Color32::from_rgb(self.border_color[0], self.border_color[1], self.border_color[2])
+        egui::Color32::from_rgb(
+            self.border_color[0],
+            self.border_color[1],
+            self.border_color[2],
+        )
     }
 }

@@ -14,6 +14,6 @@ pub enum PollError {
     UnsupportedScheme,
     #[error("invalid feed url: {0}")]
     InvalidUrl(#[from] url::ParseError),
-    #[error("feed too large: {0} bytes")] 
+    #[error("feed too large: {0} bytes")]
     TooLarge(u64),
 }

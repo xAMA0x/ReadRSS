@@ -1,13 +1,13 @@
+pub mod config;
 pub mod data;
 pub mod error;
-pub mod config;
 pub mod feed;
 pub mod poller;
 pub mod storage;
 
+pub use config::{AppConfig, FeedConfig, ThemeConfig, UiConfig};
 pub use data::DataApi;
 pub use error::PollError;
-pub use config::{AppConfig, ThemeConfig, UiConfig, FeedConfig};
 pub use feed::shared_feed_list;
 pub use feed::{add_feed, list_feeds, remove_feed};
 pub use feed::{FeedDescriptor, FeedEntry, SharedFeedList};

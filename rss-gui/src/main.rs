@@ -106,11 +106,17 @@ fn load_data_api(runtime: &Arc<Runtime>, feeds: rss_core::SharedFeedList) -> Arc
 fn install_emoji_friendly_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
 
-    fn add_font_path(fonts: &mut egui::FontDefinitions, path: &std::path::Path, added: &mut Vec<String>) -> bool {
+    fn add_font_path(
+        fonts: &mut egui::FontDefinitions,
+        path: &std::path::Path,
+        added: &mut Vec<String>,
+    ) -> bool {
         match std::fs::read(path) {
             Ok(bytes) => {
                 let name = format!("embedded-{}", added.len());
-                fonts.font_data.insert(name.clone(), egui::FontData::from_owned(bytes));
+                fonts
+                    .font_data
+                    .insert(name.clone(), egui::FontData::from_owned(bytes));
                 fonts
                     .families
                     .entry(egui::FontFamily::Proportional)
@@ -163,7 +169,11 @@ fn install_emoji_friendly_fonts(ctx: &egui::Context) {
                     };
                     if let Some(path) = maybe_path {
                         if add_font_path(&mut fonts, &path, &mut added) {
-                            tracing::info!("Police ajoutée via fontconfig: {} -> {}", fam, path.display());
+                            tracing::info!(
+                                "Police ajoutée via fontconfig: {} -> {}",
+                                fam,
+                                path.display()
+                            );
                             _used_fontdb = true;
                         }
                     }
