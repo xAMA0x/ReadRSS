@@ -246,6 +246,7 @@ pub struct RssApp {
     show_unread_only: bool,
     
     discover_feedback: Option<(bool, String)>,
+    focus_search_next: bool,
 }
 
 impl RssApp {
@@ -276,6 +277,7 @@ impl RssApp {
             add_feedback: None,
             show_unread_only: false,
             discover_feedback: None,
+            focus_search_next: false,
         };
         let persisted = app.runtime.block_on(app.data_api.list_all_articles());
         if !persisted.is_empty() {
@@ -669,8 +671,9 @@ impl RssApp {
             .max_width(500.0)
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                    ui.group(|group| {
-                        group.vertical(|ui| {
+                    egui::Frame::group(ui.style())
+                        .inner_margin(egui::Margin::symmetric(2.0, 2.0))
+                        .show(ui, |ui| {
                             ui.label(
                                 egui::RichText::new("🔍 Ajouter un nouveau flux")
                                     .strong()
@@ -679,10 +682,26 @@ impl RssApp {
                             ui.separator();
 
                             ui.label(egui::RichText::new("Titre du flux :").size(13.0));
-                            ui.text_edit_singleline(&mut self.new_feed_title);
+                            let title_id = egui::Id::new("new_feed_title");
+                            let title_resp = ui.add(
+                                egui::TextEdit::singleline(&mut self.new_feed_title).id(title_id),
+                            );
 
                             ui.label(egui::RichText::new("URL du flux :").size(13.0));
-                            ui.text_edit_singleline(&mut self.new_feed_url);
+                            let url_id = egui::Id::new("new_feed_url");
+                            let url_resp = ui.add(
+                                egui::TextEdit::singleline(&mut self.new_feed_url).id(url_id),
+                            );
+
+                            // Entrée rapide: touche Entrée dans l'un des champs -> Ajouter
+                            // Gestion fiable d'Enter: on vérifie la perte de focus due à Enter
+                            let pressed_enter = ui.ctx().input(|i| i.key_pressed(egui::Key::Enter));
+                            if title_resp.lost_focus() && pressed_enter {
+                                ui.memory_mut(|m| m.request_focus(url_id));
+                            }
+                            if url_resp.lost_focus() && pressed_enter {
+                                self.add_feed_from_input();
+                            }
 
                             ui.horizontal(|ui| {
                                 if ui.button("➕ Ajouter").clicked() {
@@ -704,15 +723,15 @@ impl RssApp {
                                 ui.label(egui::RichText::new(msg.clone()).color(color).size(13.0));
                             }
                         });
-                    });
 
-                    ui.add_space(10.0);
+                    ui.add_space(2.0);
 
-                    ui.group(|group| {
-                        group.vertical(|ui| {
+                    egui::Frame::group(ui.style())
+                        .inner_margin(egui::Margin::symmetric(2.0, 2.0))
+                        .show(ui, |ui| {
                             let w = ui.available_width();
                             let btn =
-                                egui::Button::new(egui::RichText::new("🔎 Discover").strong());
+                                egui::Button::new(egui::RichText::new("🔎 Découvrir").strong());
                             if ui.add_sized(egui::vec2(w, 28.0), btn).clicked() {
                                 self.current_view = AppView::DiscoverHome;
                                 self.selected_feed = None;
@@ -726,35 +745,45 @@ impl RssApp {
                                 ui.label(egui::RichText::new(msg.clone()).color(color).size(13.0));
                             }
                         });
-                    });
 
-                    ui.add_space(6.0);
+                    ui.add_space(2.0);
 
-                    ui.group(|group| {
-                        group.vertical(|ui| {
+                    egui::Frame::group(ui.style())
+                        .inner_margin(egui::Margin::symmetric(2.0, 2.0))
+                        .show(ui, |ui| {
                             let w = ui.available_width();
-                            let btn =
-                                egui::Button::new(egui::RichText::new("⚙️ Paramètres").strong());
+                            let btn = egui::Button::new(
+                                egui::RichText::new("⚙ Paramètres").strong(),
+                            );
                             if ui.add_sized(egui::vec2(w, 28.0), btn).clicked() {
                                 self.current_view = AppView::Settings;
                                 self.selected_feed = None;
                             }
                         });
-                    });
 
-                    ui.add_space(10.0);
+                    ui.add_space(2.0);
 
-                    ui.group(|group| {
-                        group.vertical(|ui| {
+                    // Raccourci: Ctrl+F pour mettre le focus sur la recherche
+                    if ui.input_mut(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::F)) {
+                        self.focus_search_next = true;
+                    }
+
+                    egui::Frame::group(ui.style())
+                        .inner_margin(egui::Margin::symmetric(6.0, 6.0))
+                        .show(ui, |ui| {
                             ui.label(
                                 egui::RichText::new("🔍 Rechercher dans les flux")
                                     .strong()
                                     .size(15.0),
                             );
                             ui.separator();
-                            ui.text_edit_singleline(&mut self.feed_search);
+                            let id = egui::Id::new("feed_search_input");
+                            if self.focus_search_next {
+                                ui.memory_mut(|m| m.request_focus(id));
+                                self.focus_search_next = false;
+                            }
+                            ui.add(egui::TextEdit::singleline(&mut self.feed_search).id(id));
                         });
-                    });
 
                     ui.add_space(10.0);
 
@@ -829,12 +858,42 @@ impl RssApp {
                                             self.selected_feed.as_ref() == Some(&feed.id);
 
                                         ui.horizontal(|ui| {
-                                            let response = ui.selectable_label(
-                                                is_selected,
-                                                egui::RichText::new(&feed.title).size(14.0),
+                                            // Zone cliquable: toute la bande gauche (jusqu'aux boutons), texte aligné à gauche
+                                            let _spacing = ui.spacing().item_spacing.x + 8.0; // réservé si besoin
+                                            let right_controls_width = 80.0; // réserve fixe pour ⟳ et 🗑 + marges
+                                            let left_width = (ui.available_width() - right_controls_width).max(120.0);
+                                            let (rect, response_bg) = ui.allocate_exact_size(
+                                                egui::vec2(left_width, 24.0),
+                                                egui::Sense::click(),
                                             );
+                                            // Peindre un fond de sélection/hover plein sur toute la zone
+                                            if is_selected || response_bg.hovered() {
+                                                let visuals = ui.style().visuals.clone();
+                                                let fill = if is_selected {
+                                                    visuals.selection.bg_fill
+                                                } else {
+                                                    visuals.widgets.hovered.weak_bg_fill
+                                                };
+                                                ui.painter().rect_filled(rect, 4.0, fill);
+                                            }
+                                            // Curseur main sur hover
+                                            if response_bg.hovered() {
+                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                            }
+                                            // Dessin du libellé aligné à gauche (pas de widget au-dessus pour que tout le rect capte le clic)
+                                            let text_pos = egui::pos2(rect.left() + 8.0, rect.center().y);
+                                            let font_id = egui::FontId::proportional(14.0);
+                                            let text_color = ui.visuals().text_color();
+                                            ui.painter().text(
+                                                text_pos,
+                                                egui::Align2::LEFT_CENTER,
+                                                &feed.title,
+                                                font_id,
+                                                text_color,
+                                            );
+                                            let row_clicked = response_bg.clicked();
 
-                                            if response.clicked() {
+                                            if row_clicked {
                                                 self.selected_feed = Some(feed.id.clone());
                                                 self.current_view = AppView::ArticleList;
                                                 let persisted = self.runtime.block_on(
@@ -881,7 +940,7 @@ impl RssApp {
                                                     );
                                                 }
                                             }
-                                            response.on_hover_text(&feed.url);
+                                            response_bg.on_hover_text(&feed.url);
 
                                             ui.with_layout(
                                                 egui::Layout::right_to_left(egui::Align::Center),
@@ -1275,11 +1334,13 @@ impl RssApp {
         // ===
         // Page Paramètres: thème, interface, flux.
         // ===
-        ui.heading(egui::RichText::new("⚙️ Paramètres").size(18.0));
+        ui.heading(egui::RichText::new("⚙ Paramètres").size(18.0));
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            ui.group(|ui| {
+            egui::Frame::group(ui.style())
+                .inner_margin(egui::Margin::symmetric(4.0, 4.0))
+                .show(ui, |ui| {
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new("🎨 Thème").strong().size(16.0));
                     ui.separator();
@@ -1345,11 +1406,13 @@ impl RssApp {
                 });
             });
 
-            ui.add_space(10.0);
+            ui.add_space(2.0);
 
-            ui.group(|ui| {
+            egui::Frame::group(ui.style())
+                .inner_margin(egui::Margin::symmetric(4.0, 4.0))
+                .show(ui, |ui| {
                 ui.vertical(|ui| {
-                    ui.label(egui::RichText::new("🖥️ Interface").strong().size(16.0));
+                    ui.label(egui::RichText::new("🖥 Interface").strong().size(16.0));
                     ui.separator();
 
                     ui.horizontal(|ui| {
@@ -1365,21 +1428,7 @@ impl RssApp {
                         }
                     });
 
-                    ui.horizontal(|ui| {
-                        ui.label("Largeur du panneau de gauche:");
-                        if ui
-                            .add(
-                                egui::Slider::new(
-                                    &mut self.config.ui.left_panel_width,
-                                    200.0..=500.0,
-                                )
-                                .suffix(" px"),
-                            )
-                            .changed()
-                        {
-                            let _ = self.config.save();
-                        }
-                    });
+                    // Paramètre supprimé de l'UI: Largeur du panneau de gauche
 
                     ui.horizontal(|ui| {
                         ui.label("Articles par page:");
@@ -1406,9 +1455,11 @@ impl RssApp {
                 });
             });
 
-            ui.add_space(10.0);
+            ui.add_space(2.0);
 
-            ui.group(|ui| {
+            egui::Frame::group(ui.style())
+                .inner_margin(egui::Margin::symmetric(4.0, 4.0))
+                .show(ui, |ui| {
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new("📡 Flux RSS").strong().size(16.0));
                     ui.separator();
@@ -1453,13 +1504,27 @@ impl RssApp {
                 });
             });
 
-            ui.add_space(20.0);
+            ui.add_space(2.0);
 
             ui.horizontal(|ui| {
-                if ui.button("🗂 Ouvrir dossier config").clicked() {
+                if ui.button("🗂 Ouvrir le dossier de configuration").clicked() {
                     if let Ok(config_path) = rss_core::AppConfig::config_file_path() {
                         if let Some(parent) = config_path.parent() {
-                            let _ = std::process::Command::new("xdg-open").arg(parent).spawn();
+                            #[cfg(target_os = "windows")]
+                            {
+                                let mut cmd = std::process::Command::new("explorer");
+                                let _ = cmd.arg(parent).spawn();
+                            }
+                            #[cfg(target_os = "macos")]
+                            {
+                                let mut cmd = std::process::Command::new("open");
+                                let _ = cmd.arg(parent).spawn();
+                            }
+                            #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+                            {
+                                let mut cmd = std::process::Command::new("xdg-open");
+                                let _ = cmd.arg(parent).spawn();
+                            }
                         }
                     }
                 }
