@@ -195,10 +195,17 @@ fn install_emoji_friendly_fonts(ctx: &egui::Context) {
     let mut added: Vec<String> = Vec::new();
     #[allow(unused_mut)]
     let mut _used_fontdb = false;
-    #[cfg(not(target_os = "windows"))]
     {
+        // Charger les polices système sur toutes les plateformes
         let mut db = fontdb::Database::new();
         db.load_system_fonts();
+
+        // Listes de familles candidates selon l'OS
+        #[cfg(target_os = "windows")]
+        let families = ["Segoe UI Emoji", "Segoe UI Symbol"];
+        #[cfg(target_os = "macos")]
+        let families = ["Apple Color Emoji"];
+        #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
         let families = [
             "Noto Color Emoji",
             "Noto Emoji",
@@ -223,7 +230,7 @@ fn install_emoji_friendly_fonts(ctx: &egui::Context) {
                     if let Some(path) = maybe_path {
                         if add_font_path(&mut fonts, &path, &mut added) {
                             tracing::info!(
-                                "Police ajoutée via fontconfig: {} -> {}",
+                                "Police ajoutée via système: {} -> {}",
                                 fam,
                                 path.display()
                             );
@@ -235,6 +242,12 @@ fn install_emoji_friendly_fonts(ctx: &egui::Context) {
         }
     }
     if added.is_empty() {
+        // Chemins de secours spécifiques à l'OS
+        #[cfg(target_os = "windows")]
+        let candidates = [r"C:\\Windows\\Fonts\\seguiemj.ttf", r"C:\\Windows\\Fonts\\seguisym.ttf"];
+        #[cfg(target_os = "macos")]
+        let candidates = ["/System/Library/Fonts/Apple Color Emoji.ttc"];
+        #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
         let candidates = [
             "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
             "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
