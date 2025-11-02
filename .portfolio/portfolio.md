@@ -41,7 +41,7 @@ architecture:
 
 # Diagrammes d'architecture (optionnel)
 diagrams:
-  - path: "https://raw.githubusercontent.com/xAMA0x/ReadRSS/main/.portfolio/diagrams/readrss-architecture.svg"
+  - path: "https://raw.githubusercontent.com/xAMA0x/ReadRSS/main/.portfolio/diagrams/diagram.svg"
     title: "Architecture Core / GUI"
     description: "Vue d'ensemble de la séparation des crates (logique et interface)"
 
